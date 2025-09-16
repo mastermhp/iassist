@@ -5,6 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import {
   Bot,
   Zap,
@@ -22,11 +26,37 @@ import {
   Users,
   Heart,
   Eye,
+  Settings,
+  Clock,
+  Save,
 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function Dashboard() {
-  const [isAutomationActive, setIsAutomationActive] = useState(true)
+  const [isAutomationActive, setIsAutomationActive] = useState(false)
   const [floatingElements, setFloatingElements] = useState([])
+  const [automationConfig, setAutomationConfig] = useState({
+    schedules: [
+      {
+        id: 1,
+        times: ["09:00", "18:00"],
+        platforms: ["facebook"],
+        topic: "AI development and seeking co-founders for tech innovations",
+        tone: "professional",
+        enabled: true,
+      },
+    ],
+  })
+  const [showAutomationSettings, setShowAutomationSettings] = useState(false)
+  const [automationStats, setAutomationStats] = useState({
+    totalPosts: 0,
+    successfulPosts: 0,
+    failedPosts: 0,
+    lastPostTime: null,
+  })
+  const [recentPosts, setRecentPosts] = useState([])
+  const [nextPostTime, setNextPostTime] = useState(null)
+  const { toast } = useToast()
 
   useEffect(() => {
     // Create floating 3D elements
@@ -38,42 +68,202 @@ export default function Dashboard() {
       size: Math.random() * 20 + 10,
     }))
     setFloatingElements(elements)
+
+    loadAutomationStatus()
+
+    const interval = setInterval(loadAutomationStatus, 30000)
+    return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    if (isAutomationActive && automationConfig.schedules.length > 0) {
+      calculateNextPostTime()
+    }
+  }, [isAutomationActive, automationConfig])
+
+  const calculateNextPostTime = () => {
+    const now = new Date()
+    let nextTime = null
+
+    for (const schedule of automationConfig.schedules) {
+      if (!schedule.enabled) continue
+
+      for (const time of schedule.times) {
+        const [hour, minute] = time.split(":").map(Number)
+        const scheduledTime = new Date()
+        scheduledTime.setHours(hour, minute, 0, 0)
+
+        if (scheduledTime <= now) {
+          scheduledTime.setDate(scheduledTime.getDate() + 1)
+        }
+
+        if (!nextTime || scheduledTime < nextTime) {
+          nextTime = scheduledTime
+        }
+      }
+    }
+
+    setNextPostTime(nextTime)
+  }
+
+  const loadAutomationStatus = async () => {
+    try {
+      const response = await fetch("/api/automation")
+      if (response.ok) {
+        const data = await response.json()
+        setIsAutomationActive(data.isActive)
+        if (data.schedules && data.schedules.length > 0) {
+          setAutomationConfig({ schedules: data.schedules })
+        }
+        if (data.stats) {
+          setAutomationStats(data.stats)
+        }
+        if (data.recentPosts) {
+          setRecentPosts(data.recentPosts)
+        }
+      }
+    } catch (error) {
+      console.log("[v0] Error loading automation status:", error)
+    }
+  }
+
+  const toggleAutomation = async () => {
+    try {
+      const action = isAutomationActive ? "stop" : "start"
+      const response = await fetch("/api/automation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action,
+          config: automationConfig,
+        }),
+      })
+
+      if (response.ok) {
+        setIsAutomationActive(!isAutomationActive)
+        toast({
+          title: isAutomationActive ? "Automation Stopped" : "Automation Started",
+          description: isAutomationActive
+            ? "Automated content generation has been paused"
+            : "AI will now generate and post content automatically",
+        })
+      } else {
+        throw new Error("Failed to toggle automation")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const saveAutomationConfig = async () => {
+    try {
+      const response = await fetch("/api/automation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "update-schedules",
+          config: automationConfig,
+        }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Settings Saved",
+          description: "Automation configuration has been updated",
+        })
+        setShowAutomationSettings(false)
+      } else {
+        throw new Error("Failed to save configuration")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const updateSchedule = (scheduleId, field, value) => {
+    setAutomationConfig((prev) => ({
+      ...prev,
+      schedules: prev.schedules.map((schedule) =>
+        schedule.id === scheduleId ? { ...schedule, [field]: value } : schedule,
+      ),
+    }))
+  }
+
+  const addSchedule = () => {
+    const newSchedule = {
+      id: Date.now(),
+      times: ["09:00"],
+      platforms: ["facebook"],
+      topic: "AI development and seeking co-founders for tech innovations",
+      tone: "professional",
+      enabled: true,
+    }
+    setAutomationConfig((prev) => ({
+      ...prev,
+      schedules: [...prev.schedules, newSchedule],
+    }))
+  }
+
+  const removeSchedule = (scheduleId) => {
+    setAutomationConfig((prev) => ({
+      ...prev,
+      schedules: prev.schedules.filter((schedule) => schedule.id !== scheduleId),
+    }))
+  }
+
   const stats = [
-    { label: "Posts Generated", value: "1,247", change: "+12%", icon: Bot },
-    { label: "Engagement Rate", value: "8.4%", change: "+2.1%", icon: Heart },
-    { label: "Followers Growth", value: "+2,847", change: "+18%", icon: Users },
-    { label: "Reach", value: "45.2K", change: "+24%", icon: Eye },
+    { label: "Posts Generated", value: automationStats.totalPosts.toString(), change: "+12%", icon: Bot },
+    {
+      label: "Success Rate",
+      value:
+        automationStats.totalPosts > 0
+          ? `${Math.round((automationStats.successfulPosts / automationStats.totalPosts) * 100)}%`
+          : "0%",
+      change: "+2.1%",
+      icon: Heart,
+    },
+    {
+      label: "Active Schedules",
+      value: automationConfig.schedules.filter((s) => s.enabled).length.toString(),
+      change: "+18%",
+      icon: Users,
+    },
+    {
+      label: "Last Post",
+      value: automationStats.lastPostTime ? new Date(automationStats.lastPostTime).toLocaleTimeString() : "Never",
+      change: "+24%",
+      icon: Eye,
+    },
   ]
 
-  const recentPosts = [
-    {
-      platform: "Instagram",
-      content: "Just launched our new AI-powered feature! 🚀 The future of automation is here...",
-      engagement: "234 likes, 45 comments",
-      time: "2 hours ago",
-      status: "published",
-    },
-    {
-      platform: "Facebook",
-      content: "Behind the scenes: How we built our social media automation tool using cutting-edge AI...",
-      engagement: "156 likes, 23 shares",
-      time: "4 hours ago",
-      status: "published",
-    },
-    {
-      platform: "Twitter",
-      content: "The future of content creation is automated, intelligent, and incredibly powerful. Here's why...",
-      engagement: "89 retweets, 234 likes",
-      time: "6 hours ago",
-      status: "scheduled",
-    },
-  ]
+  const displayPosts =
+    recentPosts.length > 0
+      ? recentPosts
+      : [
+          {
+            platform: "Facebook",
+            content:
+              "🚀 Exciting news! I'm working on revolutionary AI projects and looking for passionate co-founders to join me in building the future of technology...",
+            engagement: "Just posted",
+            time: "Waiting for first automated post",
+            status: "scheduled",
+          },
+        ]
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Floating 3D Background Elements */}
       <div className="fixed inset-0 pointer-events-none">
         {floatingElements.map((element) => (
           <div
@@ -92,7 +282,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Matrix Rain Effect */}
       <div className="fixed inset-0 pointer-events-none opacity-10">
         {Array.from({ length: 20 }).map((_, i) => (
           <div
@@ -113,9 +302,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Main Content */}
       <div className="relative z-10">
-        {/* Header */}
         <header className="border-b border-border/50 glass-effect">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
@@ -137,7 +324,15 @@ export default function Dashboard() {
                   <span className="text-white">{isAutomationActive ? "Active" : "Paused"}</span>
                 </Badge>
                 <Button
-                  onClick={() => setIsAutomationActive(!isAutomationActive)}
+                  variant="outline"
+                  onClick={() => setShowAutomationSettings(!showAutomationSettings)}
+                  className="neon-border"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  <span className="text-white">Settings</span>
+                </Button>
+                <Button
+                  onClick={toggleAutomation}
                   variant={isAutomationActive ? "destructive" : "default"}
                   className="neon-border"
                 >
@@ -149,9 +344,149 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Dashboard Content */}
         <main className="container mx-auto px-6 py-8">
-          {/* Stats Grid */}
+          {showAutomationSettings && (
+            <Card className="mb-8 glass-effect neon-border animate-float">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-glow">
+                  <Settings className="w-5 h-5 text-primary" />
+                  <span>Automation Settings</span>
+                </CardTitle>
+                <CardDescription>Configure when and how AI generates content automatically</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {automationConfig.schedules.map((schedule, index) => (
+                  <div key={schedule.id} className="p-4 rounded-lg bg-muted/20 neon-border space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-white">Schedule {index + 1}</h4>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={schedule.enabled}
+                          onCheckedChange={(checked) => updateSchedule(schedule.id, "enabled", checked)}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeSchedule(schedule.id)}
+                          className="text-red-400 border-red-400 hover:bg-red-400/10"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label>Post Times</Label>
+                        <div className="space-y-2">
+                          {schedule.times.map((time, timeIndex) => (
+                            <div key={timeIndex} className="flex items-center space-x-2">
+                              <Input
+                                type="time"
+                                value={time}
+                                onChange={(e) => {
+                                  const newTimes = [...schedule.times]
+                                  newTimes[timeIndex] = e.target.value
+                                  updateSchedule(schedule.id, "times", newTimes)
+                                }}
+                                className="neon-border bg-transparent"
+                              />
+                              {schedule.times.length > 1 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newTimes = schedule.times.filter((_, i) => i !== timeIndex)
+                                    updateSchedule(schedule.id, "times", newTimes)
+                                  }}
+                                  className="text-red-400"
+                                >
+                                  ×
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newTimes = [...schedule.times, "12:00"]
+                              updateSchedule(schedule.id, "times", newTimes)
+                            }}
+                            className="w-full neon-border"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add Time
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Platforms</Label>
+                        <div className="space-y-2">
+                          {["facebook", "instagram", "twitter", "linkedin"].map((platform) => (
+                            <div key={platform} className="flex items-center space-x-2">
+                              <Switch
+                                checked={schedule.platforms.includes(platform)}
+                                onCheckedChange={(checked) => {
+                                  const newPlatforms = checked
+                                    ? [...schedule.platforms, platform]
+                                    : schedule.platforms.filter((p) => p !== platform)
+                                  updateSchedule(schedule.id, "platforms", newPlatforms)
+                                }}
+                              />
+                              <span className="text-sm text-white capitalize">{platform}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Topic</Label>
+                        <Input
+                          value={schedule.topic}
+                          onChange={(e) => updateSchedule(schedule.id, "topic", e.target.value)}
+                          placeholder="e.g., AI technology, business tips"
+                          className="neon-border bg-transparent"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Tone</Label>
+                        <Select
+                          value={schedule.tone}
+                          onValueChange={(value) => updateSchedule(schedule.id, "tone", value)}
+                        >
+                          <SelectTrigger className="neon-border bg-transparent">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="professional">Professional</SelectItem>
+                            <SelectItem value="casual">Casual</SelectItem>
+                            <SelectItem value="engaging">Engaging</SelectItem>
+                            <SelectItem value="humorous">Humorous</SelectItem>
+                            <SelectItem value="inspirational">Inspirational</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between pt-4">
+                  <Button variant="outline" onClick={addSchedule} className="neon-border bg-transparent">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Schedule
+                  </Button>
+                  <Button onClick={saveAutomationConfig} className="bg-gradient-to-r from-primary to-secondary">
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Settings
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {stats.map((stat, index) => (
               <Card
@@ -175,9 +510,7 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Main Dashboard Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* AI Content Generator */}
             <div className="lg:col-span-2">
               <Card className="glass-effect neon-border animate-float">
                 <CardHeader>
@@ -185,7 +518,7 @@ export default function Dashboard() {
                     <Sparkles className="w-5 h-5 text-primary" />
                     <span>AI Content Generator</span>
                   </CardTitle>
-                  <CardDescription>Generate engaging posts with advanced AI</CardDescription>
+                  <CardDescription>Generate engaging posts about your expertise automatically</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -199,6 +532,7 @@ export default function Dashboard() {
                         key={platform.name}
                         variant="outline"
                         className="h-20 flex-col space-y-2 neon-border hover:animate-glow bg-transparent"
+                        onClick={() => (window.location.href = "/generate")}
                       >
                         <platform.icon className="w-6 h-6 text-white" />
                         <span className="text-xs platform-text">{platform.name}</span>
@@ -208,15 +542,32 @@ export default function Dashboard() {
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Next post generation in:</span>
+                      <span className="text-sm text-muted-foreground">
+                        {isAutomationActive ? "Next automated post in:" : "Automation paused"}
+                      </span>
                       <Badge variant="outline" className="animate-pulse-neon">
-                        <span className="text-white">2h 34m</span>
+                        <Clock className="w-3 h-3 mr-1" />
+                        <span className="text-white">
+                          {isAutomationActive && nextPostTime
+                            ? `${Math.ceil((nextPostTime - new Date()) / (1000 * 60))}m`
+                            : "Paused"}
+                        </span>
                       </Badge>
                     </div>
-                    <Progress value={65} className="h-2" />
+                    <Progress
+                      value={
+                        isAutomationActive && nextPostTime
+                          ? Math.max(0, 100 - ((nextPostTime - new Date()) / (1000 * 60 * 60)) * 100)
+                          : 0
+                      }
+                      className="h-2"
+                    />
                   </div>
 
-                  <Button className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 animate-glow">
+                  <Button
+                    className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 animate-glow"
+                    onClick={() => (window.location.href = "/generate")}
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     <span className="text-white">Generate New Post</span>
                   </Button>
@@ -224,7 +575,6 @@ export default function Dashboard() {
               </Card>
             </div>
 
-            {/* Quick Actions */}
             <div className="space-y-6">
               <Card className="glass-effect neon-border animate-float" style={{ animationDelay: "0.2s" }}>
                 <CardHeader>
@@ -283,18 +633,17 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Recent Posts */}
           <Card className="mt-8 glass-effect neon-border animate-float" style={{ animationDelay: "0.6s" }}>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2 text-glow">
                 <TrendingUp className="w-5 h-5 text-primary" />
                 <span>Recent Posts</span>
               </CardTitle>
-              <CardDescription>Your latest AI-generated content</CardDescription>
+              <CardDescription>Your latest AI-generated content about your expertise</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentPosts.map((post, index) => (
+                {displayPosts.map((post, index) => (
                   <div
                     key={index}
                     className="flex items-start space-x-4 p-4 rounded-lg bg-muted/20 neon-border hover:animate-glow transition-all duration-300"
@@ -310,7 +659,11 @@ export default function Dashboard() {
                         <Badge variant={post.status === "published" ? "default" : "secondary"}>
                           <span className="text-white">{post.status}</span>
                         </Badge>
-                        <span className="text-xs text-muted-foreground">{post.time}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {typeof post.time === "string" && post.time.includes("T")
+                            ? new Date(post.time).toLocaleString()
+                            : post.time}
+                        </span>
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">{post.content}</p>
                       <div className="flex items-center space-x-4 text-xs text-muted-foreground">

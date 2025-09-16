@@ -2,6 +2,14 @@ import { GoogleGenerativeAI } from "@google/generative-ai"
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
+const COMPANY_PROFILE = `
+I'm a professional web developer specializing in MERN stack with expertise in Next.js, Node.js, MongoDB, Vercel, and Cloudinary. 
+I work on international and national level projects and also have experience in app development through Flutter. 
+I'm fully professional in AI development for web and apps using Gemini and ChatGPT to build various AI products. 
+I'm mostly engaged in AI-based projects and have started developing my own game using Unreal Engine under my game studio banner. 
+I'm building a complete IT sector connected with web apps and games, and I'm actively searching for professional co-founders or teammates to build something big in the IT sector and create extraordinary innovations.
+`
+
 export async function POST(request) {
   try {
     const { platform, topic, tone, includeHashtags, contentType, generateImage } = await request.json()
@@ -13,31 +21,43 @@ export async function POST(request) {
       )
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
 
-    // Create dynamic prompt based on parameters
     const prompt = `
-    You are an expert social media content creator and AI assistant. Generate engaging ${platform} content with the following specifications:
-
+    You are creating social media content for a professional web developer and AI specialist. Here's the company profile:
+    
+    ${COMPANY_PROFILE}
+    
+    Create engaging ${platform} content with these specifications:
     Platform: ${platform}
-    Topic: ${topic || "general business/tech content"}
+    Topic: ${topic || "AI development, web development, or seeking co-founders"}
     Tone: ${tone || "professional yet engaging"}
     Content Type: ${contentType || "post"}
     Include Hashtags: ${includeHashtags ? "Yes" : "No"}
 
+    Content themes to focus on:
+    - AI development expertise and projects
+    - MERN stack and Next.js development
+    - Game development with Unreal Engine
+    - Looking for co-founders and teammates
+    - IT sector innovations and ideas
+    - Professional achievements and capabilities
+    - Technology trends and insights
+
     Platform-specific guidelines:
-    - Instagram: Visual-focused, use emojis, 1-3 sentences max, engaging captions
-    - Facebook: Longer form content, storytelling, community engagement
-    - Twitter: Concise, witty, trending topics, under 280 characters
-    - LinkedIn: Professional, industry insights, thought leadership
+    - Instagram: Visual-focused, use emojis, engaging captions about tech achievements
+    - Facebook: Storytelling about projects, seeking collaborations, professional journey
+    - Twitter: Tech insights, quick tips, networking for co-founders
+    - LinkedIn: Professional achievements, seeking partnerships, industry expertise
 
     Requirements:
-    - Make it authentic and human-like
-    - Include a call-to-action when appropriate
-    - Use relevant emojis for Instagram and Facebook
+    - Make it authentic and reflect the developer's expertise
+    - Include call-to-action for collaboration or networking
+    - Use relevant tech emojis for Instagram and Facebook
     - Keep within platform character limits
-    - Make it shareable and engaging
-    ${includeHashtags ? "- Include 3-5 relevant hashtags at the end" : ""}
+    - Make it shareable and professional
+    - Focus on building connections and showcasing expertise
+    ${includeHashtags ? "- Include 5-8 relevant hashtags like #WebDeveloper #AI #NextJS #MERN #GameDev #CoFounder #TechInnovation" : ""}
     
     Generate only the post content, no additional explanation.
     `
@@ -49,16 +69,19 @@ export async function POST(request) {
     let imagePrompt = null
     let generatedImageUrl = null
 
-    if (generateImage || contentType === "image-post" || platform === "Instagram") {
+    if (generateImage || contentType === "image-post" || platform === "instagram") {
       const imagePromptResult = await model.generateContent(`
         Based on this social media post: "${content}"
         
-        Generate a detailed image prompt for AI image generation that would complement this post perfectly. 
+        Generate a detailed image prompt for AI image generation that represents a professional web developer and AI specialist. 
         The image should be:
-        - Professional and eye-catching
-        - Relevant to the content
-        - Suitable for ${platform}
-        - High quality and engaging
+        - Professional tech/AI themed (coding, futuristic, modern workspace)
+        - High-tech aesthetic with modern design elements
+        - Include elements like: code screens, AI symbols, modern workspace, tech gadgets
+        - Color scheme: modern blues, teals, purples, or professional gradients
+        - Suitable for ${platform} and tech audience
+        - Convey innovation, expertise, and professionalism
+        - Include visual elements related to web development, AI, or game development
         
         Return only the image prompt, no additional text.
       `)
@@ -66,13 +89,13 @@ export async function POST(request) {
       imagePrompt = imageResponse.text()
 
       try {
-        const imageModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-thinking-exp-01-21" })
+        console.log("[v0] Generating tech-themed image with prompt:", imagePrompt)
 
-        console.log("[v0] Generating image with prompt:", imagePrompt)
+        const imageModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
 
         const imageResult = await imageModel.generateContent([
           {
-            text: `Generate a high-quality, professional social media image: ${imagePrompt}. Make it visually striking and suitable for ${platform}.`,
+            text: `Generate a high-quality, professional tech/AI themed image: ${imagePrompt}. Make it modern, sleek, and suitable for a professional developer's social media. Include elements like coding interfaces, AI symbols, or modern tech workspace.`,
           },
         ])
 
@@ -81,24 +104,23 @@ export async function POST(request) {
         if (imageResponse.candidates && imageResponse.candidates[0]) {
           const candidate = imageResponse.candidates[0]
           if (candidate.content && candidate.content.parts) {
-            // Look for image data in the response
             const imagePart = candidate.content.parts.find((part) => part.inlineData)
             if (imagePart && imagePart.inlineData) {
-              // Convert base64 image to data URL
               generatedImageUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`
-              console.log("[v0] Image generated successfully")
+              console.log("[v0] Tech image generated successfully")
             }
           }
         }
 
-        // Fallback to placeholder if no image was generated
         if (!generatedImageUrl) {
-          console.log("[v0] No image data in response, using placeholder")
-          generatedImageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(imagePrompt)}`
+          console.log("[v0] No image data in response, using tech-themed placeholder")
+          const encodedPrompt = encodeURIComponent("Professional web developer AI specialist modern tech workspace")
+          generatedImageUrl = `/placeholder.svg?height=400&width=600&query=${encodedPrompt}`
         }
       } catch (imageError) {
-        console.log("[v0] Image generation failed, using placeholder:", imageError.message)
-        generatedImageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(imagePrompt)}`
+        console.log("[v0] Image generation failed, using tech placeholder:", imageError.message)
+        const encodedPrompt = encodeURIComponent("Professional developer AI technology modern workspace")
+        generatedImageUrl = `/placeholder.svg?height=400&width=600&query=${encodedPrompt}`
       }
     }
 

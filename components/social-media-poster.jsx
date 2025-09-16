@@ -82,6 +82,22 @@ export default function SocialMediaPoster({ initialContent = "", initialImageUrl
       setImageUrl(event.detail.imageUrl || "")
     }
 
+    // Check for content from sessionStorage (from generate page)
+    if (typeof window !== "undefined") {
+      const storedContent = sessionStorage.getItem("generatedContent")
+      if (storedContent) {
+        try {
+          const parsed = JSON.parse(storedContent)
+          setContent(parsed.content || "")
+          setImageUrl(parsed.imageUrl || "")
+          // Clear the stored content after loading
+          sessionStorage.removeItem("generatedContent")
+        } catch (error) {
+          console.log("[v0] Error parsing stored content:", error)
+        }
+      }
+    }
+
     window.addEventListener("openPublisher", handleOpenPublisher)
     return () => window.removeEventListener("openPublisher", handleOpenPublisher)
   }, [])
@@ -106,6 +122,62 @@ export default function SocialMediaPoster({ initialContent = "", initialImageUrl
         description: "Please select at least one platform to post to",
         variant: "destructive",
       })
+      return
+    }
+
+    if (schedulePost) {
+      if (!scheduledTime) {
+        toast({
+          title: "Schedule Time Required",
+          description: "Please select a time to schedule your post",
+          variant: "destructive",
+        })
+        return
+      }
+
+      try {
+        setIsPosting(true)
+
+        const response = await fetch("/api/scheduler", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content,
+            imageUrl: imageUrl || null,
+            platforms: selectedPlatformsList,
+            scheduledTime,
+            recurring: null,
+            topic: "Manual Post",
+            tone: "user-defined",
+          }),
+        })
+
+        const data = await response.json()
+
+        if (response.ok) {
+          toast({
+            title: "Post Scheduled!",
+            description: `Your post has been scheduled for ${new Date(scheduledTime).toLocaleString()}`,
+          })
+          // Clear form after successful scheduling
+          setContent("")
+          setImageUrl("")
+          setScheduledTime("")
+          setSchedulePost(false)
+        } else {
+          throw new Error(data.error || "Failed to schedule post")
+        }
+      } catch (error) {
+        toast({
+          title: "Scheduling Failed",
+          description: error.message,
+          variant: "destructive",
+        })
+      } finally {
+        setIsPosting(false)
+      }
       return
     }
 
@@ -170,6 +242,8 @@ export default function SocialMediaPoster({ initialContent = "", initialImageUrl
           title: "Posts Published!",
           description: `Successfully posted to all ${successCount} platforms`,
         })
+        setContent("")
+        setImageUrl("")
       } else if (successCount > 0) {
         toast({
           title: "Partial Success",

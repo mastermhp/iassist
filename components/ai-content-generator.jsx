@@ -336,14 +336,19 @@ export default function AIContentGenerator() {
               <Button
                 className="bg-gradient-to-r from-primary to-secondary"
                 onClick={() => {
-                  // Pass generated content to publisher
-                  const publishEvent = new CustomEvent("openPublisher", {
-                    detail: {
-                      content: generatedContent.content,
-                      imageUrl: generatedContent.generatedImageUrl || "",
-                    },
-                  })
-                  window.dispatchEvent(publishEvent)
+                  if (typeof window !== "undefined") {
+                    // Store the generated content in sessionStorage for cross-page access
+                    sessionStorage.setItem(
+                      "generatedContent",
+                      JSON.stringify({
+                        content: generatedContent.content,
+                        imageUrl: generatedContent.generatedImageUrl || "",
+                      }),
+                    )
+
+                    // Navigate to publish page
+                    window.location.href = "/publish"
+                  }
                 }}
               >
                 <Share className="w-4 h-4 mr-2" />
