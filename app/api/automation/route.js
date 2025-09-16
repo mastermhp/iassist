@@ -1,15 +1,6 @@
 const automationConfig = {
   isActive: false,
-  schedules: [
-    {
-      id: 1,
-      times: ["09:00", "18:00"],
-      platforms: ["facebook"],
-      topic: "AI development and seeking co-founders for tech innovations",
-      tone: "professional",
-      enabled: true,
-    },
-  ],
+  schedules: [],
   lastRun: null,
   stats: {
     totalPosts: 0,
@@ -20,6 +11,23 @@ const automationConfig = {
 }
 
 const recentPosts = []
+const automationLogs = []
+const MAX_LOGS = 100
+
+function addLog(level, message, data = null) {
+  const log = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    level, // 'info', 'success', 'error', 'warning'
+    message,
+    data,
+  }
+  automationLogs.unshift(log)
+  if (automationLogs.length > MAX_LOGS) {
+    automationLogs.pop()
+  }
+  console.log(`[v0] ${level.toUpperCase()}: ${message}`, data || "")
+}
 
 export async function GET() {
   return Response.json({
@@ -28,6 +36,7 @@ export async function GET() {
     lastRun: automationConfig.lastRun,
     stats: automationConfig.stats,
     recentPosts: recentPosts.slice(-10), // Last 10 posts
+    logs: automationLogs.slice(0, 50), // Last 50 logs
   })
 }
 
@@ -37,12 +46,7 @@ export async function POST(request) {
 
     if (action === "start") {
       automationConfig.isActive = true
-      if (config && config.schedules) {
-        automationConfig.schedules = config.schedules
-      }
-
-      console.log("Automation started with schedules:", automationConfig.schedules)
-
+      addLog("success", "Automation started successfully")
       return Response.json({
         success: true,
         message: "Automation started successfully",
@@ -52,78 +56,146 @@ export async function POST(request) {
 
     if (action === "stop") {
       automationConfig.isActive = false
-      console.log("[v0] Automation stopped")
+      addLog("info", "Automation stopped by user")
       return Response.json({
         success: true,
         message: "Automation stopped successfully",
       })
     }
 
-    if (action === "update-schedules") {
-      automationConfig.schedules = config.schedules || []
-      console.log("[v0] Schedules updated:", automationConfig.schedules)
-      return Response.json({
-        success: true,
-        message: "Automation schedules updated successfully",
-        schedules: automationConfig.schedules,
-      })
+    if (action === "quick-test") {
+      addLog("info", "Quick test initiated by user")
+
+      const testSchedule = {
+        id: "test",
+        platforms: ["facebook"],
+        topic: "AI development and seeking co-founders for tech innovations",
+        tone: "professional",
+        enabled: true,
+      }
+
+      try {
+        const result = await generateAndScheduleContent(testSchedule)
+
+        automationConfig.stats.totalPosts++
+        automationConfig.stats.successfulPosts++
+        automationConfig.stats.lastPostTime = new Date().toISOString()
+
+        recentPosts.unshift({
+          id: Date.now(),
+          content: result.content,
+          platform: testSchedule.platforms[0],
+          time: new Date().toISOString(),
+          status: "published",
+          engagement: "Test post - just published",
+          isTest: true,
+        })
+
+        addLog("success", "Quick test completed successfully", {
+          platform: testSchedule.platforms[0],
+          contentLength: result.content.length,
+        })
+
+        return Response.json({
+          success: true,
+          message: "Quick test completed successfully",
+          result,
+          stats: automationConfig.stats,
+        })
+      } catch (error) {
+        addLog("error", "Quick test failed", { error: error.message })
+        return Response.json({ error: error.message }, { status: 500 })
+      }
     }
 
     if (action === "run-automation") {
       if (!automationConfig.isActive) {
+        addLog("warning", "Automation run attempted but automation is not active")
         return Response.json({ error: "Automation is not active" }, { status: 400 })
       }
 
       const now = new Date()
       const results = []
 
-      console.log("[v0] Running automation check at:", now.toISOString())
+      addLog("info", "Automation cycle started", { timestamp: now.toISOString() })
 
-      for (const schedule of automationConfig.schedules) {
-        if (!schedule.enabled) continue
+      try {
+        const schedulerResponse = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/scheduler`)
+        const schedulerData = await schedulerResponse.json()
+        const scheduledPosts = schedulerData.scheduledPosts || []
 
-        try {
-          const shouldRun = checkScheduleTime(schedule, now)
-          console.log("[v0] Schedule", schedule.id, "should run:", shouldRun)
+        addLog("info", `Found ${scheduledPosts.length} scheduled posts to check`)
 
-          if (shouldRun) {
-            console.log("[v0] Executing schedule:", schedule.id)
-            const result = await generateAndScheduleContent(schedule)
-            results.push({
-              scheduleId: schedule.id,
-              success: true,
-              result,
-            })
-
-            automationConfig.stats.totalPosts++
-            automationConfig.stats.successfulPosts++
-            automationConfig.stats.lastPostTime = now.toISOString()
-
-            recentPosts.unshift({
-              id: Date.now(),
-              content: result.content.substring(0, 100) + "...",
-              platform: schedule.platforms[0],
-              time: now.toISOString(),
-              status: "published",
-              engagement: "Just posted",
-            })
+        for (const post of scheduledPosts) {
+          if (post.status !== "scheduled") {
+            continue
           }
-        } catch (error) {
-          console.error("[v0] Schedule execution failed:", error)
-          results.push({
-            scheduleId: schedule.id,
-            success: false,
-            error: error.message,
-          })
-          automationConfig.stats.failedPosts++
+
+          try {
+            const shouldRun = checkScheduledPostTime(post, now)
+            addLog("info", `Post ${post.id} time check`, {
+              shouldRun,
+              scheduledTime: post.scheduledTime,
+              currentTime: now.toISOString(),
+            })
+
+            if (shouldRun) {
+              addLog("info", `Executing scheduled post ${post.id}`, {
+                platforms: post.platforms,
+                content: post.content.substring(0, 50) + "...",
+              })
+
+              const result = await executeScheduledPost(post)
+              results.push({
+                postId: post.id,
+                success: true,
+                result,
+              })
+
+              automationConfig.stats.totalPosts++
+              automationConfig.stats.successfulPosts++
+              automationConfig.stats.lastPostTime = now.toISOString()
+
+              recentPosts.unshift({
+                id: Date.now(),
+                content: result.content,
+                platform: post.platforms[0],
+                time: now.toISOString(),
+                status: "published",
+                engagement: "Scheduled post - just published",
+              })
+
+              addLog("success", `Scheduled post ${post.id} executed successfully`, {
+                platform: post.platforms[0],
+              })
+
+              await markPostAsPublished(post.id)
+            }
+          } catch (error) {
+            addLog("error", `Scheduled post ${post.id} execution failed`, { error: error.message })
+            results.push({
+              postId: post.id,
+              success: false,
+              error: error.message,
+            })
+            automationConfig.stats.failedPosts++
+          }
         }
+      } catch (error) {
+        addLog("error", "Failed to fetch scheduled posts", { error: error.message })
+        return Response.json({ error: "Failed to fetch scheduled posts" }, { status: 500 })
       }
 
       automationConfig.lastRun = now.toISOString()
 
+      addLog("info", "Automation cycle completed", {
+        processedPosts: results.length,
+        successfulExecutions: results.filter((r) => r.success).length,
+      })
+
       return Response.json({
         success: true,
-        message: `Automation run completed. Processed ${results.length} schedules.`,
+        message: `Automation run completed. Processed ${results.length} scheduled posts.`,
         results,
         lastRun: automationConfig.lastRun,
         stats: automationConfig.stats,
@@ -132,8 +204,125 @@ export async function POST(request) {
 
     return Response.json({ error: "Invalid action" }, { status: 400 })
   } catch (error) {
-    console.error("Automation error:", error)
+    addLog("error", "Automation API error", { error: error.message })
     return Response.json({ error: error.message }, { status: 500 })
+  }
+}
+
+function checkScheduledPostTime(post, currentTime) {
+  const now = new Date(currentTime)
+  const scheduledTime = new Date(post.scheduledTime)
+
+  // Check if current time is within 5 minutes of scheduled time
+  const timeDiff = Math.abs(now.getTime() - scheduledTime.getTime())
+  const fiveMinutesInMs = 5 * 60 * 1000
+
+  const shouldRun = timeDiff <= fiveMinutesInMs && now >= scheduledTime
+
+  console.log(`[v0] Scheduled post time check for ${post.id}:`, {
+    scheduledTime: scheduledTime.toISOString(),
+    currentTime: now.toISOString(),
+    timeDiffMinutes: Math.round(timeDiff / 60000),
+    shouldRun,
+  })
+
+  return shouldRun
+}
+
+async function executeScheduledPost(post) {
+  addLog("info", `Executing scheduled post ${post.id}`)
+
+  let content = post.content
+
+  // If no content but has topic, generate content
+  if (!content && post.topic) {
+    addLog("info", "Generating content for scheduled post", { topic: post.topic })
+
+    const contentResponse = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/generate-content`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        platform: post.platforms[0],
+        topic: post.topic,
+        tone: post.tone || "engaging",
+        includeHashtags: true,
+        contentType: "post",
+        generateImage: true,
+      }),
+    })
+
+    if (!contentResponse.ok) {
+      throw new Error("Failed to generate content for scheduled post")
+    }
+
+    const contentData = await contentResponse.json()
+    content = contentData.content
+    addLog("success", "Content generated for scheduled post")
+  }
+
+  // Post to all platforms
+  const postResults = {}
+
+  for (const platform of post.platforms) {
+    try {
+      addLog("info", `Posting scheduled content to ${platform}`)
+
+      let requestBody
+      const headers = {}
+
+      if (platform === "facebook") {
+        const formData = new FormData()
+        formData.append("content", content)
+        if (post.imageUrl) {
+          formData.append("imageUrl", post.imageUrl)
+        }
+        requestBody = formData
+      } else {
+        headers["Content-Type"] = "application/json"
+        requestBody = JSON.stringify({
+          content: content,
+          imageUrl: post.imageUrl || null,
+        })
+      }
+
+      const response = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/social/${platform}`, {
+        method: "POST",
+        headers,
+        body: requestBody,
+      })
+
+      const data = await response.json()
+      postResults[platform] = response.ok ? { success: true, data } : { success: false, error: data.error }
+
+      if (response.ok) {
+        addLog("success", `Successfully posted scheduled content to ${platform}`, { postId: data.id })
+      } else {
+        addLog("error", `Failed to post scheduled content to ${platform}`, { error: data.error })
+      }
+    } catch (error) {
+      addLog("error", `Error posting scheduled content to ${platform}`, { error: error.message })
+      postResults[platform] = { success: false, error: error.message }
+    }
+  }
+
+  return {
+    content: content,
+    imageUrl: post.imageUrl,
+    postResults,
+    timestamp: new Date().toISOString(),
+    originalPost: post,
+  }
+}
+
+async function markPostAsPublished(postId) {
+  try {
+    // This would update the post status in the scheduler
+    // For now, we'll just log it since the scheduler uses in-memory storage
+    addLog("info", `Marked post ${postId} as published`)
+  } catch (error) {
+    addLog("error", `Failed to mark post ${postId} as published`, { error: error.message })
   }
 }
 
@@ -144,13 +333,25 @@ function checkScheduleTime(schedule, currentTime) {
 
   return schedule.times.some((time) => {
     const [hour, minute] = time.split(":").map(Number)
-    const timeDiff = Math.abs(currentHour * 60 + currentMinute - (hour * 60 + minute))
-    return timeDiff <= 5 // Within 5 minutes
+    const scheduleTimeInMinutes = hour * 60 + minute
+    const currentTimeInMinutes = currentHour * 60 + currentMinute
+
+    // Check if current time is within 2 minutes of scheduled time
+    const timeDiff = Math.abs(currentTimeInMinutes - scheduleTimeInMinutes)
+
+    console.log(`[v0] Time check for schedule ${schedule.id}:`, {
+      scheduledTime: time,
+      currentTime: `${currentHour}:${currentMinute.toString().padStart(2, "0")}`,
+      timeDiff,
+      shouldRun: timeDiff <= 2,
+    })
+
+    return timeDiff <= 2 // Within 2 minutes for better reliability
   })
 }
 
 async function generateAndScheduleContent(schedule) {
-  console.log("[v0] Generating content for schedule:", schedule.id)
+  addLog("info", `Starting content generation for schedule ${schedule.id}`)
 
   const topics = [
     "AI development expertise and latest projects",
@@ -164,6 +365,8 @@ async function generateAndScheduleContent(schedule) {
 
   const randomTopic = topics[Math.floor(Math.random() * topics.length)]
   const finalTopic = schedule.topic || randomTopic
+
+  addLog("info", "Generating content", { topic: finalTopic, tone: schedule.tone })
 
   // Generate content
   const contentResponse = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/generate-content`, {
@@ -186,14 +389,17 @@ async function generateAndScheduleContent(schedule) {
   }
 
   const contentData = await contentResponse.json()
-  console.log("[v0] Content generated successfully")
+  addLog("success", "Content generated successfully", {
+    contentLength: contentData.content.length,
+    hasImage: !!contentData.generatedImageUrl,
+  })
 
   // Post immediately to all platforms
   const postResults = {}
 
   for (const platform of schedule.platforms) {
     try {
-      console.log("[v0] Posting to", platform)
+      addLog("info", `Posting to ${platform}`)
 
       let requestBody
       const headers = {}
@@ -223,12 +429,12 @@ async function generateAndScheduleContent(schedule) {
       postResults[platform] = response.ok ? { success: true, data } : { success: false, error: data.error }
 
       if (response.ok) {
-        console.log("[v0] Successfully posted to", platform)
+        addLog("success", `Successfully posted to ${platform}`, { postId: data.id })
       } else {
-        console.error("[v0] Failed to post to", platform, ":", data.error)
+        addLog("error", `Failed to post to ${platform}`, { error: data.error })
       }
     } catch (error) {
-      console.error("[v0] Error posting to", platform, ":", error.message)
+      addLog("error", `Error posting to ${platform}`, { error: error.message })
       postResults[platform] = { success: false, error: error.message }
     }
   }

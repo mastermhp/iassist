@@ -223,8 +223,35 @@ export default function SocialMediaPoster({ initialContent = "", initialImageUrl
             results[platform] = { success: true, data }
             console.log(`[v0] ${platform} post successful:`, data)
           } else {
-            results[platform] = { success: false, error: data.error }
+            results[platform] = {
+              success: false,
+              error: data.error,
+              tokenExpired: data.tokenExpired,
+              permissionError: data.permissionError, // Added permission error flag
+            }
             console.log(`[v0] ${platform} post failed:`, data.error)
+
+            if (data.permissionError) {
+              toast({
+                title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} Permission Error`,
+                description: "Your access token lacks required permissions. Visit Token Helper to fix this.",
+                variant: "destructive",
+                action: {
+                  label: "Fix Token",
+                  onClick: () => window.open("/token-helper", "_blank"),
+                },
+              })
+            } else if (data.tokenExpired) {
+              toast({
+                title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} Token Expired`,
+                description: "Please update your access token in environment variables",
+                variant: "destructive",
+                action: {
+                  label: "Token Helper",
+                  onClick: () => window.open("/token-helper", "_blank"),
+                },
+              })
+            }
           }
         } catch (error) {
           results[platform] = { success: false, error: error.message }

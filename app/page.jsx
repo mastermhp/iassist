@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { History } from "lucide-react" // Import History icon
 import {
   Bot,
   Zap,
@@ -56,6 +57,10 @@ export default function Dashboard() {
   })
   const [recentPosts, setRecentPosts] = useState([])
   const [nextPostTime, setNextPostTime] = useState(null)
+  const [automationLogs, setAutomationLogs] = useState([])
+  const [showLogs, setShowLogs] = useState(false)
+  const [isQuickTesting, setIsQuickTesting] = useState(false)
+  const [testCountdown, setTestCountdown] = useState(null)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -121,9 +126,103 @@ export default function Dashboard() {
         if (data.recentPosts) {
           setRecentPosts(data.recentPosts)
         }
+        if (data.logs) {
+          setAutomationLogs(data.logs)
+        }
       }
     } catch (error) {
       console.log("[v0] Error loading automation status:", error)
+    }
+  }
+
+  const runQuickTest = async () => {
+    if (automationConfig.schedules.length === 0) {
+      toast({
+        title: "No Schedules",
+        description: "Please configure at least one schedule before testing",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsQuickTesting(true)
+    setTestCountdown(120) // 2 minutes
+
+    // Start countdown
+    const countdownInterval = setInterval(() => {
+      setTestCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval)
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    try {
+      const response = await fetch("/api/automation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "quick-test",
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        toast({
+          title: "Quick Test Successful!",
+          description: "Content generated and posted successfully",
+        })
+        loadAutomationStatus()
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.error)
+      }
+    } catch (error) {
+      toast({
+        title: "Quick Test Failed",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsQuickTesting(false)
+      clearInterval(countdownInterval)
+      setTestCountdown(null)
+    }
+  }
+
+  const triggerSchedule = async (scheduleId) => {
+    try {
+      const response = await fetch("/api/automation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "manual-trigger",
+          config: { scheduleId },
+        }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Manual Trigger Successful!",
+          description: "Content generated and posted successfully",
+        })
+        loadAutomationStatus()
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.error)
+      }
+    } catch (error) {
+      toast({
+        title: "Manual Trigger Failed",
+        description: error.message,
+        variant: "destructive",
+      })
     }
   }
 
@@ -323,6 +422,27 @@ export default function Dashboard() {
                   <Zap className="w-3 h-3 mr-1" />
                   <span className="text-white">{isAutomationActive ? "Active" : "Paused"}</span>
                 </Badge>
+                <Button variant="outline" onClick={() => (window.location.href = "/debug")} className="neon-border">
+                  <Eye className="w-4 h-4 mr-2" />
+                  <span className="text-white">Debug</span>
+                </Button>
+                <Button variant="outline" onClick={() => (window.location.href = "/history")} className="neon-border">
+                  <History className="w-4 h-4 mr-2" />
+                  <span className="text-white">History</span>
+                </Button>
+                <Button variant="outline" onClick={() => setShowLogs(!showLogs)} className="neon-border">
+                  <Eye className="w-4 h-4 mr-2" />
+                  <span className="text-white">Logs</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={runQuickTest}
+                  disabled={isQuickTesting}
+                  className="neon-border bg-transparent"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  <span className="text-white">{isQuickTesting ? `Testing... ${testCountdown}s` : "Quick Test"}</span>
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => setShowAutomationSettings(!showAutomationSettings)}
@@ -345,6 +465,65 @@ export default function Dashboard() {
         </header>
 
         <main className="container mx-auto px-6 py-8">
+          {showLogs && (
+            <Card className="mb-8 glass-effect neon-border animate-float">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-glow">
+                  <Eye className="w-5 h-5 text-primary" />
+                  <span>Real-time Automation Logs</span>
+                </CardTitle>
+                <CardDescription>Live updates of automation activities and status</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="max-h-96 overflow-y-auto space-y-2">
+                  {automationLogs.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Eye className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-muted-foreground">No logs yet. Start automation to see activity.</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Use the "Quick Test" button to generate a test post and see logs in action!
+                      </p>
+                    </div>
+                  ) : (
+                    automationLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className={`p-3 rounded-lg border-l-4 ${
+                          log.level === "success"
+                            ? "border-green-500 bg-green-500/10"
+                            : log.level === "error"
+                              ? "border-red-500 bg-red-500/10"
+                              : log.level === "warning"
+                                ? "border-yellow-500 bg-yellow-500/10"
+                                : "border-blue-500 bg-blue-500/10"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-white">{log.message}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        {log.data && (
+                          <pre className="text-xs text-muted-foreground mt-2 overflow-x-auto">
+                            {JSON.stringify(log.data, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <p className="text-sm text-blue-400 font-medium">💡 Pro Tip:</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use "Quick Test" to immediately generate and post content to see the entire automation process in
+                    action. Perfect for testing your setup!
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {showAutomationSettings && (
             <Card className="mb-8 glass-effect neon-border animate-float">
               <CardHeader>
@@ -360,6 +539,15 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between">
                       <h4 className="font-medium text-white">Schedule {index + 1}</h4>
                       <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => triggerSchedule(schedule.id)}
+                          className="text-green-400 border-green-400 hover:bg-green-400/10"
+                        >
+                          <Play className="w-3 h-3 mr-1" />
+                          Trigger Now
+                        </Button>
                         <Switch
                           checked={schedule.enabled}
                           onCheckedChange={(checked) => updateSchedule(schedule.id, "enabled", checked)}
@@ -562,6 +750,38 @@ export default function Dashboard() {
                       }
                       className="h-2"
                     />
+
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50">
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className={`w-2 h-2 rounded-full ${isAutomationActive ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
+                          />
+                          <span className="text-sm text-white">
+                            Automation {isAutomationActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {isAutomationActive ? "AI is monitoring schedules" : "No automatic posting"}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50">
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className={`w-2 h-2 rounded-full ${automationConfig.schedules.filter((s) => s.enabled).length > 0 ? "bg-blue-400" : "bg-gray-400"}`}
+                          />
+                          <span className="text-sm text-white">
+                            {automationConfig.schedules.filter((s) => s.enabled).length} Active Schedules
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {automationConfig.schedules.filter((s) => s.enabled).length > 0
+                            ? "Ready to post"
+                            : "No schedules configured"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <Button
