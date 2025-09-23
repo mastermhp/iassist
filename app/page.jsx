@@ -32,6 +32,7 @@ import {
   Save,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import ConnectionTester from "@/components/connection-tester"
 
 export default function Dashboard() {
   const [isAutomationActive, setIsAutomationActive] = useState(false)
@@ -699,7 +700,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-8">
               <Card className="glass-effect neon-border animate-float">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2 text-glow">
@@ -793,6 +794,9 @@ export default function Dashboard() {
                   </Button>
                 </CardContent>
               </Card>
+
+              {/* Connection Tester */}
+              <ConnectionTester />
             </div>
 
             <div className="space-y-6">

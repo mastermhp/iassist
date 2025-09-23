@@ -3,11 +3,34 @@ import { GoogleGenerativeAI } from "@google/generative-ai"
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 const COMPANY_PROFILE = `
-I'm a professional web developer specializing in MERN stack with expertise in Next.js, Node.js, MongoDB, Vercel, and Cloudinary. 
-I work on international and national level projects and also have experience in app development through Flutter. 
-I'm fully professional in AI development for web and apps using Gemini and ChatGPT to build various AI products. 
-I'm mostly engaged in AI-based projects and have started developing my own game using Unreal Engine under my game studio banner. 
-I'm building a complete IT sector connected with web apps and games, and I'm actively searching for professional co-founders or teammates to build something big in the IT sector and create extraordinary innovations.
+I'm a professional web developer and AI specialist with expertise in:
+
+🚀 TECHNICAL SKILLS:
+- MERN Stack (MongoDB, Express, React, Node.js)
+- Next.js, TypeScript, and modern web frameworks
+- AI Development using Gemini AI and ChatGPT APIs
+- Flutter for cross-platform mobile development
+- Game development with Unreal Engine
+- Cloud platforms: Vercel, AWS, Google Cloud
+- Database management and API development
+
+💼 PROFESSIONAL EXPERIENCE:
+- Working on international and national level projects
+- Building AI-powered web applications and mobile apps
+- Developing innovative solutions for businesses
+- Creating automated systems and intelligent workflows
+
+🎮 CURRENT PROJECTS:
+- Developing games under my own game studio
+- Building comprehensive IT solutions
+- Creating AI-based automation tools
+- Working on social media automation platforms
+
+🤝 SEEKING COLLABORATION:
+- Looking for professional co-founders and teammates
+- Building something extraordinary in the IT sector
+- Open to partnerships for innovative tech projects
+- Interested in creating revolutionary solutions
 `
 
 export async function POST(request) {
