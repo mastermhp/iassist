@@ -96,7 +96,27 @@ export async function POST(request) {
       endpoint = `https://graph.facebook.com/v23.0/${pageId}/photos`
       postFormData.delete("message")
       postFormData.append("caption", content)
-      postFormData.append("url", imageUrl)
+
+      // Convert relative URLs to absolute URLs that Facebook can access
+      let absoluteImageUrl = imageUrl
+      if (imageUrl.startsWith("/")) {
+        // Convert relative URL to absolute URL
+        if (process.env.NODE_ENV === "production") {
+          const domain =
+            process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : "https://eyexai.vercel.app"
+          absoluteImageUrl = `${domain}${imageUrl}`
+        } else {
+          // For development, we need to use a publicly accessible URL
+          // Facebook can't access localhost URLs
+          console.log("[v0] Warning: Facebook cannot access localhost URLs. Image posting may fail in development.")
+          absoluteImageUrl = `http://localhost:3000${imageUrl}`
+        }
+      }
+
+      console.log("[v0] Using absolute image URL for Facebook:", absoluteImageUrl)
+      postFormData.append("url", absoluteImageUrl)
     }
 
     console.log("[v0] Posting to Facebook endpoint:", endpoint)
@@ -121,7 +141,10 @@ export async function POST(request) {
       let isTokenError = false
       let isPermissionError = false
 
-      if (
+      if (data.error?.code === 324 || errorMessage.includes("Missing or invalid image file")) {
+        errorMessage =
+          "Facebook cannot access the image. In development, Facebook cannot reach localhost URLs. Deploy to production or use a publicly accessible image URL."
+      } else if (
         data.error?.code === 200 ||
         errorMessage.includes("pages_read_engagement") ||
         errorMessage.includes("pages_manage_posts")
@@ -146,7 +169,9 @@ export async function POST(request) {
             ? "Generate a new Page Access Token with required permissions at: https://developers.facebook.com/tools/explorer/"
             : isTokenError
               ? "Generate a new token at: https://developers.facebook.com/tools/explorer/"
-              : "Check your Facebook API configuration",
+              : data.error?.code === 324
+                ? "Deploy to production or use a publicly accessible image URL for Facebook posting"
+                : "Check your Facebook API configuration",
           tokenExpired: isTokenError,
           permissionError: isPermissionError,
         },

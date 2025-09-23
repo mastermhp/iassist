@@ -273,6 +273,13 @@ export default function AIContentGenerator() {
                     src={generatedContent.generatedImageUrl || "/placeholder.svg"}
                     alt="Generated content image"
                     className="w-full h-80 object-cover rounded-lg neon-border"
+                    onError={(e) => {
+                      console.log("[v0] Image failed to load:", generatedContent.generatedImageUrl)
+                      e.target.src = "/ry asks for an image based on the text image-not-found.png"
+                    }}
+                    onLoad={() => {
+                      console.log("[v0] Image loaded successfully:", generatedContent.generatedImageUrl)
+                    }}
                   />
                 </div>
               </div>

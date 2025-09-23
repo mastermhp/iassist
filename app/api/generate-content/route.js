@@ -1,6 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 const COMPANY_PROFILE = `
 I'm a professional web developer and AI specialist with expertise in:
@@ -31,19 +31,11 @@ I'm a professional web developer and AI specialist with expertise in:
 - Building something extraordinary in the IT sector
 - Open to partnerships for innovative tech projects
 - Interested in creating revolutionary solutions
-`;
-
+`
 
 export async function POST(request) {
   try {
-    const {
-      platform,
-      topic,
-      tone,
-      includeHashtags,
-      contentType,
-      generateImage,
-    } = await request.json();
+    const { platform, topic, tone, includeHashtags, contentType, generateImage } = await request.json()
 
     console.log("[v0] Content generation request:", {
       platform,
@@ -52,43 +44,31 @@ export async function POST(request) {
       includeHashtags,
       contentType,
       generateImage,
-    });
+    })
 
     if (!process.env.GEMINI_API_KEY) {
-      console.log(
-        "[v0] ERROR: GEMINI_API_KEY not found in environment variables"
-      );
+      console.log("[v0] ERROR: GEMINI_API_KEY not found in environment variables")
       return Response.json(
-        {
-          error:
-            "Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables.",
-        },
-        { status: 500 }
-      );
+        { error: "Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables." },
+        { status: 500 },
+      )
     }
 
-    console.log(
-      "[v0] GEMINI_API_KEY found, length:",
-      process.env.GEMINI_API_KEY.length
-    );
+    console.log("[v0] GEMINI_API_KEY found, length:", process.env.GEMINI_API_KEY.length)
 
-    let model;
+    let model
     try {
-      model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
-      console.log("[v0] Using model: gemini-2.5-pro");
+      model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" })
+      console.log("[v0] Using model: gemini-2.5-pro")
     } catch (modelError) {
-      console.log(
-        "[v0] Failed to load gemini-2.5-pro, trying gemini-2.5-flash"
-      );
+      console.log("[v0] Failed to load gemini-2.5-pro, trying gemini-2.5-flash")
       try {
-        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        console.log("[v0] Using fallback model: gemini-2.5-flash");
+        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
+        console.log("[v0] Using fallback model: gemini-2.5-flash")
       } catch (fallbackError) {
-        console.log(
-          "[v0] Failed to load gemini-2.5-flash, trying gemini-2.5-flash-lite"
-        );
-        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-        console.log("[v0] Using fallback model: gemini-2.5-flash-lite");
+        console.log("[v0] Failed to load gemini-2.5-flash, trying gemini-2.5-flash-lite")
+        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
+        console.log("[v0] Using fallback model: gemini-2.5-flash-lite")
       }
     }
 
@@ -135,31 +115,27 @@ export async function POST(request) {
     - Make it shareable and professional
     - Focus on building connections and showcasing expertise
     - Format with proper line breaks and structure
-    ${
-      includeHashtags
-        ? "- Include 5-8 relevant hashtags like #WebDeveloper #AI #NextJS #MERN #GameDev #CoFounder #TechInnovation"
-        : ""
-    }
+    ${includeHashtags ? "- Include 5-8 relevant hashtags like #WebDeveloper #AI #NextJS #MERN #GameDev #CoFounder #TechInnovation" : ""}
     
     Generate ONLY the final post content with proper formatting and emojis. Do not include "Option 1", "Option 2", or any additional explanations.
-    `;
+    `
 
-    console.log("[v0] Generating content with prompt length:", prompt.length);
+    console.log("[v0] Generating content with prompt length:", prompt.length)
 
-    let result, response, content;
+    let result, response, content
     try {
-      result = await model.generateContent(prompt);
-      console.log("[v0] Content generation completed");
+      result = await model.generateContent(prompt)
+      console.log("[v0] Content generation completed")
 
-      response = await result.response;
-      console.log("[v0] Response received");
+      response = await result.response
+      console.log("[v0] Response received")
 
-      content = response.text();
-      console.log("[v0] Content extracted, length:", content.length);
+      content = response.text()
+      console.log("[v0] Content extracted, length:", content.length)
     } catch (genError) {
-      console.log("[v0] Content generation failed:", genError.message);
-      console.log("[v0] Full error:", genError);
-      throw new Error(`Content generation failed: ${genError.message}`);
+      console.log("[v0] Content generation failed:", genError.message)
+      console.log("[v0] Full error:", genError)
+      throw new Error(`Content generation failed: ${genError.message}`)
     }
 
     content = content
@@ -168,12 +144,9 @@ export async function POST(request) {
       .replace(/^\s*Image:.*$/gm, "") // Remove image descriptions
       .replace(/^\s*Caption:.*$/gm, "") // Remove caption labels
       .replace(/\n{3,}/g, "\n\n") // Clean up excessive line breaks
-      .trim();
+      .trim()
 
-    console.log(
-      "[v0] Content cleaned and formatted, final length:",
-      content.length
-    );
+    console.log("[v0] Content cleaned and formatted, final length:", content.length)
 
     const imagePrompt =
       generateImage || contentType === "image-post" || platform === "instagram"
@@ -181,43 +154,37 @@ export async function POST(request) {
             topic || "web developer AI specialist"
           } in a futuristic modern tech workspace, cinematic lighting, highly detailed textures, depth of field, photorealistic, extraordinary atmosphere, professional color grading, hyper-detailed`
         : null;
-
-    let generatedImageUrl = null;
+    let generatedImageUrl = null
 
     if (imagePrompt) {
       try {
-        console.log("[v0] Generating image with prompt:", imagePrompt);
+        console.log("[v0] Generating image with prompt:", imagePrompt)
 
-        const imageResponse = await fetch(
-          `${
-            process.env.NEXTAUTH_URL || "http://localhost:3000"
-          }/api/generate-image`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ prompt: imagePrompt }),
-          }
-        );
+        const imageResponse = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/generate-image`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ prompt: imagePrompt }),
+        })
 
         if (imageResponse.ok) {
-          const imageData = await imageResponse.json();
-          generatedImageUrl = imageData.imageUrl;
-          console.log("[v0] Image generated successfully:", imageData.source);
+          const imageData = await imageResponse.json()
+          generatedImageUrl = imageData.imageUrl
+          console.log("[v0] Image generated successfully:", imageData.source)
         } else {
-          console.log("[v0] Image generation failed, using placeholder");
-          const encodedPrompt = encodeURIComponent(imagePrompt);
-          generatedImageUrl = `/placeholder.svg?height=400&width=600&query=${encodedPrompt}`;
+          console.log("[v0] Image generation failed, using placeholder")
+          const encodedPrompt = encodeURIComponent(imagePrompt)
+          generatedImageUrl = `/placeholder.svg?height=400&width=600&query=${encodedPrompt}`
         }
       } catch (imageError) {
-        console.log("[v0] Image generation error:", imageError.message);
-        const encodedPrompt = encodeURIComponent(imagePrompt);
-        generatedImageUrl = `/placeholder.svg?height=400&width=600&query=${encodedPrompt}`;
+        console.log("[v0] Image generation error:", imageError.message)
+        const encodedPrompt = encodeURIComponent(imagePrompt)
+        generatedImageUrl = `/placeholder.svg?height=400&width=600&query=${encodedPrompt}`
       }
     }
 
-    console.log("[v0] Content generation successful");
+    console.log("[v0] Content generation successful")
 
     return Response.json({
       content: content.trim(),
@@ -225,13 +192,19 @@ export async function POST(request) {
       generatedImageUrl,
       platform,
       generatedAt: new Date().toISOString(),
-    });
+    })
   } catch (error) {
-    console.error("[v0] Error generating content:", error);
-    console.error("[v0] Full error details:", error.stack);
-    return Response.json(
-      { error: `Failed to generate content: ${error.message}` },
-      { status: 500 }
-    );
+    console.error("[v0] Error generating content:", error)
+    console.error("[v0] Full error details:", error.stack)
+    return Response.json({ error: `Failed to generate content: ${error.message}` }, { status: 500 })
   }
 }
+
+
+
+
+
+
+
+
+
