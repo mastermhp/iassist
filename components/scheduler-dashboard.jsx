@@ -24,6 +24,8 @@ import {
   Twitter,
   Linkedin,
   Loader2,
+  CheckCircle,
+  Sparkles,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -32,6 +34,8 @@ export default function SchedulerDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [isAutomationActive, setIsAutomationActive] = useState(false)
   const [showScheduleForm, setShowScheduleForm] = useState(false)
+  const [showBulkSchedule, setShowBulkSchedule] = useState(false)
+  const [bulkTopics, setBulkTopics] = useState("")
   const [formData, setFormData] = useState({
     content: "",
     imageUrl: "",
@@ -61,6 +65,8 @@ export default function SchedulerDashboard() {
 
   useEffect(() => {
     fetchScheduledPosts()
+    const interval = setInterval(fetchScheduledPosts, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const fetchScheduledPosts = async () => {
@@ -76,6 +82,55 @@ export default function SchedulerDashboard() {
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleBulkSchedule = async () => {
+    if (!bulkTopics.trim()) {
+      toast({
+        title: "Topics Required",
+        description: "Please provide topics for bulk scheduling",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const topics = bulkTopics.split("\n").filter((topic) => topic.trim())
+    const now = new Date()
+
+    try {
+      for (let i = 0; i < topics.length; i++) {
+        const scheduledTime = new Date(now.getTime() + (i + 1) * 60 * 60 * 1000) // 1 hour apart
+
+        await fetch("/api/scheduler", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content: "",
+            topic: topics[i].trim(),
+            platforms: ["facebook"],
+            scheduledTime: scheduledTime.toISOString(),
+            tone: "engaging",
+          }),
+        })
+      }
+
+      toast({
+        title: "Bulk Schedule Complete!",
+        description: `Scheduled ${topics.length} posts for automatic generation`,
+      })
+
+      setBulkTopics("")
+      setShowBulkSchedule(false)
+      fetchScheduledPosts()
+    } catch (error) {
+      toast({
+        title: "Bulk Scheduling Failed",
+        description: error.message,
+        variant: "destructive",
+      })
     }
   }
 
@@ -110,7 +165,6 @@ export default function SchedulerDashboard() {
     try {
       let content = formData.content
 
-      // If no content provided but topic is, generate content with AI
       if (!content.trim() && formData.topic.trim()) {
         const generateResponse = await fetch("/api/generate-content", {
           method: "POST",
@@ -298,16 +352,51 @@ export default function SchedulerDashboard() {
               <Calendar className="w-5 h-5 text-primary" />
               <span>Schedule New Post</span>
             </div>
-            <Button onClick={() => setShowScheduleForm(!showScheduleForm)} variant="outline" className="neon-border">
-              <Plus className="w-4 h-4 mr-2" />
-              {showScheduleForm ? "Cancel" : "New Post"}
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                onClick={() => setShowBulkSchedule(!showBulkSchedule)}
+                variant="outline"
+                size="sm"
+                className="neon-border"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {showBulkSchedule ? "Cancel Bulk" : "Bulk Schedule"}
+              </Button>
+              <Button onClick={() => setShowScheduleForm(!showScheduleForm)} variant="outline" className="neon-border">
+                <Plus className="w-4 h-4 mr-2" />
+                {showScheduleForm ? "Cancel" : "New Post"}
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
 
+        {showBulkSchedule && (
+          <CardContent className="space-y-4 border-t border-border/50">
+            <div className="space-y-2">
+              <Label htmlFor="bulkTopics">Topics (one per line)</Label>
+              <Textarea
+                id="bulkTopics"
+                placeholder="AI development trends\nWeb development tips\nTechnology innovations\nBusiness growth strategies"
+                value={bulkTopics}
+                onChange={(e) => setBulkTopics(e.target.value)}
+                className="neon-border bg-transparent min-h-32"
+              />
+              <p className="text-xs text-muted-foreground">
+                Each topic will be scheduled 1 hour apart for automatic AI content generation
+              </p>
+            </div>
+            <Button
+              onClick={handleBulkSchedule}
+              className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 animate-glow"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Schedule All Topics
+            </Button>
+          </CardContent>
+        )}
+
         {showScheduleForm && (
           <CardContent className="space-y-6">
-            {/* Content or Topic */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="content">Post Content (Optional)</Label>
@@ -344,7 +433,6 @@ export default function SchedulerDashboard() {
               </div>
             </div>
 
-            {/* Image URL */}
             <div className="space-y-2">
               <Label htmlFor="imageUrl">Image URL (Optional)</Label>
               <Input
@@ -356,7 +444,6 @@ export default function SchedulerDashboard() {
               />
             </div>
 
-            {/* Platform Selection */}
             <div className="space-y-2">
               <Label>Platforms</Label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -379,7 +466,6 @@ export default function SchedulerDashboard() {
               </div>
             </div>
 
-            {/* Schedule Time */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="scheduledTime">Schedule Time</Label>
@@ -440,13 +526,37 @@ export default function SchedulerDashboard() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <Badge variant={post.status === "scheduled" ? "default" : "secondary"}>{post.status}</Badge>
+                        <Badge
+                          variant={
+                            post.status === "scheduled"
+                              ? "default"
+                              : post.status === "published"
+                                ? "secondary"
+                                : "outline"
+                          }
+                          className={
+                            post.status === "published" ? "bg-green-500/20 text-green-400 border-green-500/50" : ""
+                          }
+                        >
+                          {post.status === "published" && <CheckCircle className="w-3 h-3 mr-1" />}
+                          {post.status === "scheduled" && <Clock className="w-3 h-3 mr-1" />}
+                          {post.status}
+                        </Badge>
                         <span className="text-sm text-muted-foreground">
-                          {new Date(post.scheduledTime).toLocaleString()}
+                          {post.status === "published" && post.publishedAt
+                            ? `Published: ${new Date(post.publishedAt).toLocaleString()}`
+                            : `Scheduled: ${new Date(post.scheduledTime).toLocaleString()}`}
                         </span>
                       </div>
 
-                      <p className="text-sm mb-3 line-clamp-2">{post.content}</p>
+                      <p className="text-sm mb-3 line-clamp-2">
+                        {post.content || (
+                          <span className="flex items-center text-muted-foreground italic">
+                            <Sparkles className="w-3 h-3 mr-1" />
+                            AI will generate content for: "{post.topic}"
+                          </span>
+                        )}
+                      </p>
 
                       <div className="flex items-center space-x-2">
                         {post.platforms.map((platformId) => {
@@ -461,14 +571,16 @@ export default function SchedulerDashboard() {
                       </div>
                     </div>
 
-                    <Button
-                      onClick={() => handleDeletePost(post.id)}
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {post.status === "scheduled" && (
+                      <Button
+                        onClick={() => handleDeletePost(post.id)}
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

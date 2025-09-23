@@ -1,5 +1,5 @@
 const automationConfig = {
-  isActive: false,
+  isActive: true,
   schedules: [],
   lastRun: null,
   stats: {
@@ -30,6 +30,20 @@ function addLog(level, message, data = null) {
 }
 
 export async function GET() {
+  if (automationConfig.schedules.length === 0) {
+    automationConfig.schedules = [
+      {
+        id: "schedule1",
+        times: ["09:00", "17:14"], // 9:00 AM and 5:14 PM
+        platforms: ["facebook"],
+        topic: "AI development and seeking co-founders for tech innovations",
+        tone: "professional",
+        enabled: true,
+      },
+    ]
+    addLog("info", "Auto-loaded default automation schedules")
+  }
+
   return Response.json({
     isActive: automationConfig.isActive,
     schedules: automationConfig.schedules,
@@ -108,6 +122,65 @@ export async function POST(request) {
       }
     }
 
+    if (action === "manual-trigger") {
+      const { scheduleId } = config
+      addLog("info", `Manual trigger initiated for schedule ${scheduleId}`)
+
+      const schedule = automationConfig.schedules.find((s) => s.id === scheduleId)
+      if (!schedule) {
+        addLog("error", `Schedule ${scheduleId} not found`)
+        return Response.json({ error: "Schedule not found" }, { status: 404 })
+      }
+
+      try {
+        const result = await generateAndScheduleContent(schedule)
+
+        automationConfig.stats.totalPosts++
+        automationConfig.stats.successfulPosts++
+        automationConfig.stats.lastPostTime = new Date().toISOString()
+
+        recentPosts.unshift({
+          id: Date.now(),
+          content: result.content,
+          platform: schedule.platforms[0],
+          time: new Date().toISOString(),
+          status: "published",
+          engagement: "Manual trigger - just published",
+          isManual: true,
+        })
+
+        addLog("success", `🎉 AUTOMATED POST PUBLISHED! Post ${scheduleId} executed successfully`, {
+          platform: schedule.platforms[0],
+          contentPreview: result.content.substring(0, 100) + "...",
+          scheduledTime: schedule.scheduledTime,
+          actualTime: new Date().toISOString(),
+        })
+
+        return Response.json({
+          success: true,
+          message: "Manual trigger completed successfully",
+          result,
+          stats: automationConfig.stats,
+        })
+      } catch (error) {
+        addLog("error", `Manual trigger failed for schedule ${scheduleId}`, { error: error.message })
+        return Response.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    if (action === "update-schedules") {
+      automationConfig.schedules = config.schedules
+      addLog("info", "Automation schedules updated", {
+        scheduleCount: config.schedules.length,
+        enabledCount: config.schedules.filter((s) => s.enabled).length,
+      })
+      return Response.json({
+        success: true,
+        message: "Schedules updated successfully",
+        config: automationConfig,
+      })
+    }
+
     if (action === "run-automation") {
       if (!automationConfig.isActive) {
         addLog("warning", "Automation run attempted but automation is not active")
@@ -142,7 +215,7 @@ export async function POST(request) {
             if (shouldRun) {
               addLog("info", `Executing scheduled post ${post.id}`, {
                 platforms: post.platforms,
-                content: post.content.substring(0, 50) + "...",
+                content: post.content ? post.content.substring(0, 50) + "..." : "AI-generated content",
               })
 
               const result = await executeScheduledPost(post)
@@ -163,10 +236,14 @@ export async function POST(request) {
                 time: now.toISOString(),
                 status: "published",
                 engagement: "Scheduled post - just published",
+                scheduledPostId: post.id,
               })
 
-              addLog("success", `Scheduled post ${post.id} executed successfully`, {
+              addLog("success", `🎉 AUTOMATED POST PUBLISHED! Post ${post.id} executed successfully`, {
                 platform: post.platforms[0],
+                contentPreview: result.content.substring(0, 100) + "...",
+                scheduledTime: post.scheduledTime,
+                actualTime: now.toISOString(),
               })
 
               await markPostAsPublished(post.id)
@@ -181,6 +258,55 @@ export async function POST(request) {
             automationConfig.stats.failedPosts++
           }
         }
+
+        for (const schedule of automationConfig.schedules) {
+          if (!schedule.enabled) continue
+
+          try {
+            const shouldRun = checkScheduleTime(schedule, now)
+            if (shouldRun) {
+              addLog("info", `Executing hardcoded schedule ${schedule.id}`, {
+                platforms: schedule.platforms,
+                topic: schedule.topic,
+              })
+
+              const result = await generateAndScheduleContent(schedule)
+              results.push({
+                scheduleId: schedule.id,
+                success: true,
+                result,
+              })
+
+              automationConfig.stats.totalPosts++
+              automationConfig.stats.successfulPosts++
+              automationConfig.stats.lastPostTime = now.toISOString()
+
+              recentPosts.unshift({
+                id: Date.now(),
+                content: result.content,
+                platform: schedule.platforms[0],
+                time: now.toISOString(),
+                status: "published",
+                engagement: "Automated schedule - just published",
+                scheduleId: schedule.id,
+              })
+
+              addLog("success", `🚀 AUTOMATED POST PUBLISHED! Schedule ${schedule.id} executed successfully`, {
+                platform: schedule.platforms[0],
+                topic: schedule.topic,
+                contentPreview: result.content.substring(0, 100) + "...",
+              })
+            }
+          } catch (error) {
+            addLog("error", `Schedule ${schedule.id} execution failed`, { error: error.message })
+            results.push({
+              scheduleId: schedule.id,
+              success: false,
+              error: error.message,
+            })
+            automationConfig.stats.failedPosts++
+          }
+        }
       } catch (error) {
         addLog("error", "Failed to fetch scheduled posts", { error: error.message })
         return Response.json({ error: "Failed to fetch scheduled posts" }, { status: 500 })
@@ -188,14 +314,23 @@ export async function POST(request) {
 
       automationConfig.lastRun = now.toISOString()
 
-      addLog("info", "Automation cycle completed", {
-        processedPosts: results.length,
-        successfulExecutions: results.filter((r) => r.success).length,
-      })
+      const successfulExecutions = results.filter((r) => r.success).length
+
+      if (successfulExecutions > 0) {
+        addLog("success", `✅ Automation cycle completed successfully! Published ${successfulExecutions} posts`, {
+          totalProcessed: results.length,
+          successfulExecutions,
+          failedExecutions: results.length - successfulExecutions,
+        })
+      } else {
+        addLog("info", "Automation cycle completed - no posts were due for publishing", {
+          processedPosts: results.length,
+        })
+      }
 
       return Response.json({
         success: true,
-        message: `Automation run completed. Processed ${results.length} scheduled posts.`,
+        message: `Automation run completed. Processed ${results.length} items, published ${successfulExecutions} posts.`,
         results,
         lastRun: automationConfig.lastRun,
         stats: automationConfig.stats,
@@ -318,9 +453,23 @@ async function executeScheduledPost(post) {
 
 async function markPostAsPublished(postId) {
   try {
-    // This would update the post status in the scheduler
-    // For now, we'll just log it since the scheduler uses in-memory storage
-    addLog("info", `Marked post ${postId} as published`)
+    const updateResponse = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/scheduler`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id: postId,
+        status: "published",
+        publishedAt: new Date().toISOString(),
+      }),
+    })
+
+    if (updateResponse.ok) {
+      addLog("success", `✅ Post ${postId} marked as published in scheduler`)
+    } else {
+      addLog("warning", `Failed to update post ${postId} status in scheduler`)
+    }
   } catch (error) {
     addLog("error", `Failed to mark post ${postId} as published`, { error: error.message })
   }
@@ -336,17 +485,16 @@ function checkScheduleTime(schedule, currentTime) {
     const scheduleTimeInMinutes = hour * 60 + minute
     const currentTimeInMinutes = currentHour * 60 + currentMinute
 
-    // Check if current time is within 2 minutes of scheduled time
     const timeDiff = Math.abs(currentTimeInMinutes - scheduleTimeInMinutes)
 
     console.log(`[v0] Time check for schedule ${schedule.id}:`, {
       scheduledTime: time,
       currentTime: `${currentHour}:${currentMinute.toString().padStart(2, "0")}`,
       timeDiff,
-      shouldRun: timeDiff <= 2,
+      shouldRun: timeDiff <= 10, // Within 10 minutes for better reliability
     })
 
-    return timeDiff <= 2 // Within 2 minutes for better reliability
+    return timeDiff <= 10 // Within 10 minutes for better reliability
   })
 }
 

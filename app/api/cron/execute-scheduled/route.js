@@ -1,6 +1,7 @@
 export async function GET() {
   try {
-    console.log("[v0] Scheduled execution cron job started at:", new Date().toISOString())
+    console.log("🚀 [CRON] Scheduled execution cron job started at:", new Date().toISOString())
+    console.log("🚀 [CRON] Current time:", new Date().toLocaleString())
 
     const automationResponse = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/automation`, {
       method: "POST",
@@ -16,9 +17,21 @@ export async function GET() {
     if (automationResponse.ok) {
       const automationData = await automationResponse.json()
       automationResults = automationData.results || []
-      console.log("[v0] Automation run completed:", automationResults.length, "schedules processed")
+      console.log("✅ [CRON] Automation run completed:", automationResults.length, "schedules processed")
+
+      automationResults.forEach((result, index) => {
+        if (result.success) {
+          console.log(
+            `🎉 [AUTOMATED POST PUBLISHED] Schedule ${result.scheduleId || result.postId} executed successfully!`,
+          )
+          console.log(`📝 [CRON] Content: ${result.result?.content?.substring(0, 100)}...`)
+          console.log(
+            `📱 [CRON] Platform: ${result.result?.postResults ? Object.keys(result.result.postResults).join(", ") : "Unknown"}`,
+          )
+        }
+      })
     } else {
-      console.log("[v0] Automation run failed:", await automationResponse.text())
+      console.log("❌ [CRON] Automation run failed:", await automationResponse.text())
     }
 
     // Get all scheduled posts
@@ -41,9 +54,9 @@ export async function GET() {
       const scheduledTime = new Date(post.scheduledTime)
       const timeDiff = Math.abs(now.getTime() - scheduledTime.getTime()) / (1000 * 60) // minutes
 
-      console.log(`[v0] Post ${post.id} time check:`, {
-        scheduledTime: scheduledTime.toISOString(),
-        currentTime: now.toISOString(),
+      console.log(`🕐 [CRON] Post ${post.id} time check:`, {
+        scheduledTime: scheduledTime.toLocaleString(),
+        currentTime: now.toLocaleString(),
         timeDiff: timeDiff.toFixed(2) + " minutes",
         status: post.status,
         shouldExecute: scheduledTime <= now && post.status === "scheduled" && timeDiff <= 5,
@@ -53,7 +66,7 @@ export async function GET() {
     })
 
     console.log(
-      "[v0] Found",
+      "📊 [CRON] Found",
       postsToExecute.length,
       "posts to execute out of",
       scheduledPosts.length,
@@ -69,7 +82,8 @@ export async function GET() {
         // Execute post on each platform
         for (const platform of post.platforms) {
           try {
-            console.log(`[v0] Posting to ${platform} for scheduled post ${post.id}`)
+            console.log(`📤 [CRON] Posting to ${platform} for scheduled post ${post.id}`)
+            console.log(`📝 [CRON] Content preview: ${post.content.substring(0, 100)}...`)
 
             let requestBody
             const headers = {}
@@ -106,9 +120,15 @@ export async function GET() {
               data: response.ok ? data : { error: data.error },
             })
 
-            console.log(`[v0] ${platform} scheduled post result:`, response.ok ? "success" : data.error)
+            console.log(`✅ [CRON] ${platform} scheduled post result:`, response.ok ? "SUCCESS" : data.error)
+
+            if (response.ok) {
+              console.log(
+                `🎉 [AUTOMATED POST PUBLISHED] Platform: ${platform}, Content: "${post.content.substring(0, 50)}...", Time: ${new Date().toLocaleString()}`,
+              )
+            }
           } catch (platformError) {
-            console.log(`[v0] ${platform} scheduled post error:`, platformError.message)
+            console.log(`❌ [CRON] ${platform} scheduled post error:`, platformError.message)
             results.push({
               postId: post.id,
               platform,
@@ -131,12 +151,13 @@ export async function GET() {
       }
     }
 
-    console.log("[v0] Scheduled execution cron job completed at:", new Date().toISOString())
-    console.log("[v0] Summary:", {
+    console.log("🏁 [CRON] Scheduled execution cron job completed at:", new Date().toISOString())
+    console.log("📈 [CRON] FINAL SUMMARY:", {
       executedPosts: postsToExecute.length,
       automationSchedules: automationResults.length,
       totalResults: results.length,
       successfulPosts: results.filter((r) => r.success).length,
+      failedPosts: results.filter((r) => !r.success).length,
     })
 
     return Response.json({

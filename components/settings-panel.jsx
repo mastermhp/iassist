@@ -70,31 +70,100 @@ export default function SettingsPanel() {
   const [showApiKeys, setShowApiKeys] = useState({})
   const [testResults, setTestResults] = useState({})
   const [isSaving, setIsSaving] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
+  const [lastSyncTime, setLastSyncTime] = useState(null)
 
   const { toast } = useToast()
 
   useEffect(() => {
-    // Load settings from localStorage
-    const savedSettings = localStorage.getItem("ai-social-settings")
-    if (savedSettings) {
-      setSettings({ ...settings, ...JSON.parse(savedSettings) })
-    }
+    // Load settings from API instead of localStorage
+    loadSettingsFromAPI()
+
+    // Set up real-time sync every 30 seconds
+    const syncInterval = setInterval(syncSettings, 30000)
+
+    return () => clearInterval(syncInterval)
   }, [])
+
+  const loadSettingsFromAPI = async () => {
+    try {
+      console.log("[v0] Loading settings from API")
+      const response = await fetch("/api/settings")
+      if (response.ok) {
+        const apiSettings = await response.json()
+        setSettings((prevSettings) => ({ ...prevSettings, ...apiSettings }))
+        setIsConnected(true)
+        setLastSyncTime(new Date())
+        console.log("[v0] Settings loaded successfully")
+      }
+    } catch (error) {
+      console.log("[v0] Failed to load settings from API:", error)
+      setIsConnected(false)
+      // Fallback to localStorage
+      const savedSettings = localStorage.getItem("ai-social-settings")
+      if (savedSettings) {
+        setSettings({ ...settings, ...JSON.parse(savedSettings) })
+      }
+    }
+  }
+
+  const syncSettings = async () => {
+    try {
+      const response = await fetch("/api/settings")
+      if (response.ok) {
+        const apiSettings = await response.json()
+        setSettings((prevSettings) => ({ ...prevSettings, ...apiSettings }))
+        setIsConnected(true)
+        setLastSyncTime(new Date())
+      }
+    } catch (error) {
+      console.log("[v0] Settings sync failed:", error)
+      setIsConnected(false)
+    }
+  }
 
   const handleSaveSettings = async () => {
     setIsSaving(true)
     try {
-      // Save to localStorage (in production, this would be saved to a database)
+      console.log("[v0] Saving settings to API")
+
+      // Save to API first
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(settings),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setIsConnected(true)
+        setLastSyncTime(new Date())
+
+        // Also save to localStorage as backup
+        localStorage.setItem("ai-social-settings", JSON.stringify(settings))
+
+        toast({
+          title: "Settings Saved",
+          description: "Your configuration has been saved and synced successfully",
+        })
+
+        console.log("[v0] Settings saved successfully")
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to save settings")
+      }
+    } catch (error) {
+      console.log("[v0] Save failed, using localStorage fallback")
+      setIsConnected(false)
+
+      // Fallback to localStorage
       localStorage.setItem("ai-social-settings", JSON.stringify(settings))
 
       toast({
-        title: "Settings Saved",
-        description: "Your configuration has been saved successfully",
-      })
-    } catch (error) {
-      toast({
-        title: "Save Failed",
-        description: "Failed to save settings",
+        title: "Settings Saved Locally",
+        description: "Settings saved locally. API connection failed.",
         variant: "destructive",
       })
     } finally {
@@ -102,30 +171,29 @@ export default function SettingsPanel() {
     }
   }
 
-  const testApiConnection = async (platform) => {
-    setTestResults({ ...testResults, [platform]: "testing" })
+  const handleCriticalSettingChange = async (field, value) => {
+    const newSettings = { ...settings, [field]: value }
+    setSettings(newSettings)
 
-    try {
-      // Mock API test - in production, this would make actual API calls
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+    // Auto-save critical settings immediately
+    if (["facebookPageId", "facebookAccessToken", "instagramAccountId"].includes(field)) {
+      try {
+        console.log(`[v0] Auto-saving critical setting: ${field}`)
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(newSettings),
+        })
 
-      const success = Math.random() > 0.3 // 70% success rate for demo
-      setTestResults({ ...testResults, [platform]: success ? "success" : "error" })
-
-      toast({
-        title: success ? "Connection Successful" : "Connection Failed",
-        description: success
-          ? `${platform} API connection is working`
-          : `Failed to connect to ${platform} API. Check your credentials.`,
-        variant: success ? "default" : "destructive",
-      })
-    } catch (error) {
-      setTestResults({ ...testResults, [platform]: "error" })
-      toast({
-        title: "Test Failed",
-        description: error.message,
-        variant: "destructive",
-      })
+        toast({
+          title: "Setting Updated",
+          description: `${field} has been updated and saved automatically`,
+        })
+      } catch (error) {
+        console.log("[v0] Auto-save failed:", error)
+      }
     }
   }
 
@@ -155,6 +223,33 @@ export default function SettingsPanel() {
     { value: "custom", label: "Custom Schedule" },
   ]
 
+  const testApiConnection = async (platform) => {
+    setTestResults({ ...testResults, [platform]: "testing" })
+
+    try {
+      // Mock API test - in production, this would make actual API calls
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      const success = Math.random() > 0.3 // 70% success rate for demo
+      setTestResults({ ...testResults, [platform]: success ? "success" : "error" })
+
+      toast({
+        title: success ? "Connection Successful" : "Connection Failed",
+        description: success
+          ? `${platform} API connection is working`
+          : `Failed to connect to ${platform} API. Check your credentials.`,
+        variant: success ? "default" : "destructive",
+      })
+    } catch (error) {
+      setTestResults({ ...testResults, [platform]: "error" })
+      toast({
+        title: "Test Failed",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card className="glass-effect neon-border animate-float">
@@ -162,8 +257,21 @@ export default function SettingsPanel() {
           <CardTitle className="flex items-center space-x-2 text-glow">
             <Settings className="w-5 h-5 text-primary animate-pulse-neon" />
             <span>Settings & Configuration</span>
+            <Badge variant={isConnected ? "default" : "destructive"} className="ml-auto">
+              <div
+                className={`w-2 h-2 rounded-full mr-2 ${isConnected ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
+              />
+              {isConnected ? "Connected" : "Offline"}
+            </Badge>
           </CardTitle>
-          <CardDescription>Configure your AI social media automation system</CardDescription>
+          <CardDescription>
+            Configure your AI social media automation system
+            {lastSyncTime && (
+              <span className="block text-xs text-muted-foreground mt-1">
+                Last synced: {lastSyncTime.toLocaleTimeString()}
+              </span>
+            )}
+          </CardDescription>
         </CardHeader>
       </Card>
 
@@ -262,8 +370,18 @@ export default function SettingsPanel() {
                   <CardTitle className="flex items-center space-x-2">
                     <platform.icon className={`w-5 h-5 ${platform.color}`} />
                     <span>{platform.name}</span>
+                    {platform.id === "facebook" && (
+                      <Badge variant="outline" className="text-xs">
+                        Real-time
+                      </Badge>
+                    )}
                   </CardTitle>
-                  <CardDescription>Configure {platform.name} API credentials</CardDescription>
+                  <CardDescription>
+                    Configure {platform.name} API credentials
+                    {platform.id === "facebook" && (
+                      <span className="block text-xs text-muted-foreground mt-1">Updates automatically</span>
+                    )}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {platform.id === "facebook" && (
@@ -273,9 +391,10 @@ export default function SettingsPanel() {
                         <Input
                           placeholder="Your Facebook Page ID"
                           value={settings.facebookPageId}
-                          onChange={(e) => setSettings({ ...settings, facebookPageId: e.target.value })}
+                          onChange={(e) => handleCriticalSettingChange("facebookPageId", e.target.value)}
                           className="neon-border bg-transparent"
                         />
+                        <p className="text-xs text-muted-foreground">Changes are saved automatically when you type</p>
                       </div>
                       <div className="space-y-2">
                         <Label>Access Token</Label>
@@ -284,7 +403,7 @@ export default function SettingsPanel() {
                             type={showApiKeys.facebook ? "text" : "password"}
                             placeholder="Page Access Token"
                             value={settings.facebookAccessToken}
-                            onChange={(e) => setSettings({ ...settings, facebookAccessToken: e.target.value })}
+                            onChange={(e) => handleCriticalSettingChange("facebookAccessToken", e.target.value)}
                             className="neon-border bg-transparent"
                           />
                           <Button
@@ -582,6 +701,19 @@ export default function SettingsPanel() {
       {/* Save Button */}
       <Card className="glass-effect neon-border animate-float">
         <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-muted-foreground">
+              Critical settings (Page ID, Access Token) save automatically.
+              <br />
+              Use the button below to save all other preferences.
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"}`} />
+              <span className="text-xs text-muted-foreground">
+                {isConnected ? "Real-time sync active" : "Offline mode"}
+              </span>
+            </div>
+          </div>
           <Button
             onClick={handleSaveSettings}
             disabled={isSaving}

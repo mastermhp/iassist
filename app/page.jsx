@@ -4,34 +4,16 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { History } from "lucide-react" // Import History icon
-import {
-  Bot,
-  Zap,
-  Calendar,
-  BarChart3,
-  Sparkles,
-  Facebook,
-  Instagram,
-  Twitter,
-  Linkedin,
-  Play,
-  Pause,
-  Plus,
-  TrendingUp,
-  Users,
-  Heart,
-  Eye,
-  Settings,
-  Clock,
-  Save,
-} from "lucide-react"
+import { Bot, Zap, Play, Pause, Plus, Eye, Settings, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import ConnectionTester from "@/components/connection-tester"
+import AutoPostDashboard from "@/components/auto-post-dashboard"
+import ProcessMonitor from "@/components/process-monitor"
 
 export default function Dashboard() {
   const [isAutomationActive, setIsAutomationActive] = useState(false)
@@ -321,45 +303,6 @@ export default function Dashboard() {
       schedules: prev.schedules.filter((schedule) => schedule.id !== scheduleId),
     }))
   }
-
-  const stats = [
-    { label: "Posts Generated", value: automationStats.totalPosts.toString(), change: "+12%", icon: Bot },
-    {
-      label: "Success Rate",
-      value:
-        automationStats.totalPosts > 0
-          ? `${Math.round((automationStats.successfulPosts / automationStats.totalPosts) * 100)}%`
-          : "0%",
-      change: "+2.1%",
-      icon: Heart,
-    },
-    {
-      label: "Active Schedules",
-      value: automationConfig.schedules.filter((s) => s.enabled).length.toString(),
-      change: "+18%",
-      icon: Users,
-    },
-    {
-      label: "Last Post",
-      value: automationStats.lastPostTime ? new Date(automationStats.lastPostTime).toLocaleTimeString() : "Never",
-      change: "+24%",
-      icon: Eye,
-    },
-  ]
-
-  const displayPosts =
-    recentPosts.length > 0
-      ? recentPosts
-      : [
-          {
-            platform: "Facebook",
-            content:
-              "🚀 Exciting news! I'm working on revolutionary AI projects and looking for passionate co-founders to join me in building the future of technology...",
-            engagement: "Just posted",
-            time: "Waiting for first automated post",
-            status: "scheduled",
-          },
-        ]
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -675,229 +618,18 @@ export default function Dashboard() {
             </Card>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {stats.map((stat, index) => (
-              <Card
-                key={index}
-                className="glass-effect neon-border animate-float hover:animate-glow transition-all duration-300"
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">{stat.label}</p>
-                      <p className="text-2xl font-bold text-glow">{stat.value}</p>
-                      <p className="text-xs text-green-400">{stat.change}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center animate-pulse-neon">
-                      <stat.icon className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          {/* Auto Post Dashboard */}
+          <AutoPostDashboard />
+
+          {/* Process Monitor */}
+          <div className="mt-8">
+            <ProcessMonitor />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <Card className="glass-effect neon-border animate-float">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-glow">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    <span>AI Content Generator</span>
-                  </CardTitle>
-                  <CardDescription>Generate engaging posts about your expertise automatically</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      { name: "Facebook", icon: Facebook, color: "bg-blue-600" },
-                      { name: "Instagram", icon: Instagram, color: "bg-pink-600" },
-                      { name: "Twitter", icon: Twitter, color: "bg-sky-500" },
-                      { name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
-                    ].map((platform) => (
-                      <Button
-                        key={platform.name}
-                        variant="outline"
-                        className="h-20 flex-col space-y-2 neon-border hover:animate-glow bg-transparent"
-                        onClick={() => (window.location.href = "/generate")}
-                      >
-                        <platform.icon className="w-6 h-6 text-white" />
-                        <span className="text-xs platform-text">{platform.name}</span>
-                      </Button>
-                    ))}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        {isAutomationActive ? "Next automated post in:" : "Automation paused"}
-                      </span>
-                      <Badge variant="outline" className="animate-pulse-neon">
-                        <Clock className="w-3 h-3 mr-1" />
-                        <span className="text-white">
-                          {isAutomationActive && nextPostTime
-                            ? `${Math.ceil((nextPostTime - new Date()) / (1000 * 60))}m`
-                            : "Paused"}
-                        </span>
-                      </Badge>
-                    </div>
-                    <Progress
-                      value={
-                        isAutomationActive && nextPostTime
-                          ? Math.max(0, 100 - ((nextPostTime - new Date()) / (1000 * 60 * 60)) * 100)
-                          : 0
-                      }
-                      className="h-2"
-                    />
-
-                    <div className="grid grid-cols-2 gap-4 mt-4">
-                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50">
-                        <div className="flex items-center space-x-2">
-                          <div
-                            className={`w-2 h-2 rounded-full ${isAutomationActive ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
-                          />
-                          <span className="text-sm text-white">
-                            Automation {isAutomationActive ? "Active" : "Inactive"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {isAutomationActive ? "AI is monitoring schedules" : "No automatic posting"}
-                        </p>
-                      </div>
-
-                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50">
-                        <div className="flex items-center space-x-2">
-                          <div
-                            className={`w-2 h-2 rounded-full ${automationConfig.schedules.filter((s) => s.enabled).length > 0 ? "bg-blue-400" : "bg-gray-400"}`}
-                          />
-                          <span className="text-sm text-white">
-                            {automationConfig.schedules.filter((s) => s.enabled).length} Active Schedules
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {automationConfig.schedules.filter((s) => s.enabled).length > 0
-                            ? "Ready to post"
-                            : "No schedules configured"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button
-                    className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 animate-glow"
-                    onClick={() => (window.location.href = "/generate")}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    <span className="text-white">Generate New Post</span>
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-6">
-              <Card className="glass-effect neon-border animate-float" style={{ animationDelay: "0.2s" }}>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-glow">
-                    <Calendar className="w-5 h-5 text-primary" />
-                    <span>Schedule</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 neon-border">
-                      <span className="text-sm text-white">Today</span>
-                      <Badge variant="secondary">
-                        <span className="text-white">3 posts</span>
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20">
-                      <span className="text-sm text-white">Tomorrow</span>
-                      <Badge variant="outline">
-                        <span className="text-white">2 posts</span>
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20">
-                      <span className="text-sm text-white">This Week</span>
-                      <Badge variant="outline">
-                        <span className="text-white">14 posts</span>
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-effect neon-border animate-float" style={{ animationDelay: "0.4s" }}>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-glow">
-                    <BarChart3 className="w-5 h-5 text-primary" />
-                    <span>Performance</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-white">Engagement</span>
-                      <span className="text-sm font-medium text-green-400">+24%</span>
-                    </div>
-                    <Progress value={78} className="h-2" />
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-white">Reach</span>
-                      <span className="text-sm font-medium text-green-400">+18%</span>
-                    </div>
-                    <Progress value={65} className="h-2" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          {/* Connection Tester */}
+          <div className="mt-8">
+            <ConnectionTester />
           </div>
-
-          <Card className="mt-8 glass-effect neon-border animate-float" style={{ animationDelay: "0.6s" }}>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-glow">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                <span>Recent Posts</span>
-              </CardTitle>
-              <CardDescription>Your latest AI-generated content about your expertise</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {displayPosts.map((post, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start space-x-4 p-4 rounded-lg bg-muted/20 neon-border hover:animate-glow transition-all duration-300"
-                  >
-                    <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
-                      {post.platform === "Instagram" && <Instagram className="w-5 h-5 text-white" />}
-                      {post.platform === "Facebook" && <Facebook className="w-5 h-5 text-white" />}
-                      {post.platform === "Twitter" && <Twitter className="w-5 h-5 text-white" />}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="font-medium text-white">{post.platform}</span>
-                        <Badge variant={post.status === "published" ? "default" : "secondary"}>
-                          <span className="text-white">{post.status}</span>
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {typeof post.time === "string" && post.time.includes("T")
-                            ? new Date(post.time).toLocaleString()
-                            : post.time}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">{post.content}</p>
-                      <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                        <span className="flex items-center space-x-1">
-                          <Heart className="w-3 h-3" />
-                          <span>{post.engagement}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </main>
       </div>
     </div>

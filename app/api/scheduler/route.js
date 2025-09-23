@@ -36,6 +36,37 @@ export async function POST(request) {
   }
 }
 
+export async function PUT(request) {
+  try {
+    const { id, status, publishedAt } = await request.json()
+
+    if (!id) {
+      return Response.json({ error: "Post ID is required" }, { status: 400 })
+    }
+
+    const postIndex = scheduledPosts.findIndex((post) => post.id === id)
+
+    if (postIndex === -1) {
+      return Response.json({ error: "Post not found" }, { status: 404 })
+    }
+
+    scheduledPosts[postIndex] = {
+      ...scheduledPosts[postIndex],
+      status: status || scheduledPosts[postIndex].status,
+      publishedAt: publishedAt || scheduledPosts[postIndex].publishedAt,
+      updatedAt: new Date().toISOString(),
+    }
+
+    return Response.json({
+      success: true,
+      post: scheduledPosts[postIndex],
+    })
+  } catch (error) {
+    console.error("Update scheduler error:", error)
+    return Response.json({ error: error.message }, { status: 500 })
+  }
+}
+
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url)

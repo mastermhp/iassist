@@ -272,7 +272,7 @@ export default function AIContentGenerator() {
                   <img
                     src={generatedContent.generatedImageUrl || "/placeholder.svg"}
                     alt="Generated content image"
-                    className="w-full h-48 object-cover rounded-lg neon-border"
+                    className="w-full h-80 object-cover rounded-lg neon-border"
                   />
                 </div>
               </div>
