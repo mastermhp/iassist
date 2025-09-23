@@ -97,10 +97,14 @@ export async function POST(request) {
       postFormData.delete("message")
       postFormData.append("caption", content)
 
-      // Convert relative URLs to absolute URLs that Facebook can access
       let absoluteImageUrl = imageUrl
-      if (imageUrl.startsWith("/")) {
-        // Convert relative URL to absolute URL
+
+      // Check if it's already an absolute URL (Cloudinary, etc.)
+      if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+        absoluteImageUrl = imageUrl
+        console.log("[v0] Using cloud-hosted image URL:", absoluteImageUrl)
+      } else if (imageUrl.startsWith("/")) {
+        // Convert relative URL to absolute URL for local files
         if (process.env.NODE_ENV === "production") {
           const domain =
             process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
@@ -115,7 +119,7 @@ export async function POST(request) {
         }
       }
 
-      console.log("[v0] Using absolute image URL for Facebook:", absoluteImageUrl)
+      console.log("[v0] Using image URL for Facebook:", absoluteImageUrl)
       postFormData.append("url", absoluteImageUrl)
     }
 
@@ -143,7 +147,7 @@ export async function POST(request) {
 
       if (data.error?.code === 324 || errorMessage.includes("Missing or invalid image file")) {
         errorMessage =
-          "Facebook cannot access the image. In development, Facebook cannot reach localhost URLs. Deploy to production or use a publicly accessible image URL."
+          "Facebook cannot access the image. Make sure the image URL is publicly accessible. Cloudinary URLs should work in both development and production."
       } else if (
         data.error?.code === 200 ||
         errorMessage.includes("pages_read_engagement") ||
@@ -170,7 +174,7 @@ export async function POST(request) {
             : isTokenError
               ? "Generate a new token at: https://developers.facebook.com/tools/explorer/"
               : data.error?.code === 324
-                ? "Deploy to production or use a publicly accessible image URL for Facebook posting"
+                ? "Use Cloudinary or another cloud image service for reliable image hosting"
                 : "Check your Facebook API configuration",
           tokenExpired: isTokenError,
           permissionError: isPermissionError,

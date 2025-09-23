@@ -49,7 +49,9 @@ export async function POST(request) {
     if (!process.env.GEMINI_API_KEY) {
       console.log("[v0] ERROR: GEMINI_API_KEY not found in environment variables")
       return Response.json(
-        { error: "Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables." },
+        {
+          error: "Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables.",
+        },
         { status: 500 },
       )
     }
@@ -115,7 +117,11 @@ export async function POST(request) {
     - Make it shareable and professional
     - Focus on building connections and showcasing expertise
     - Format with proper line breaks and structure
-    ${includeHashtags ? "- Include 5-8 relevant hashtags like #WebDeveloper #AI #NextJS #MERN #GameDev #CoFounder #TechInnovation" : ""}
+    ${
+      includeHashtags
+        ? "- Include 5-8 relevant hashtags like #WebDeveloper #AI #NextJS #MERN #GameDev #CoFounder #TechInnovation"
+        : ""
+    }
     
     Generate ONLY the final post content with proper formatting and emojis. Do not include "Option 1", "Option 2", or any additional explanations.
     `
@@ -153,14 +159,20 @@ export async function POST(request) {
         ? `Ultra realistic 3D render of a ${
             topic || "web developer AI specialist"
           } in a futuristic modern tech workspace, cinematic lighting, highly detailed textures, depth of field, photorealistic, extraordinary atmosphere, professional color grading, hyper-detailed`
-        : null;
+        : null
+
     let generatedImageUrl = null
 
     if (imagePrompt) {
       try {
         console.log("[v0] Generating image with prompt:", imagePrompt)
 
-        const imageResponse = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/generate-image`, {
+        const baseUrl =
+          process.env.NODE_ENV === "production"
+            ? process.env.NEXT_PUBLIC_SITE_URL || `https://${process.env.VERCEL_URL}` || "https://eyexai.vercel.app"
+            : "http://localhost:3000"
+
+        const imageResponse = await fetch(`${baseUrl}/api/generate-image`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -172,6 +184,7 @@ export async function POST(request) {
           const imageData = await imageResponse.json()
           generatedImageUrl = imageData.imageUrl
           console.log("[v0] Image generated successfully:", imageData.source)
+          console.log("[v0] Image URL:", generatedImageUrl)
         } else {
           console.log("[v0] Image generation failed, using placeholder")
           const encodedPrompt = encodeURIComponent(imagePrompt)
@@ -199,12 +212,3 @@ export async function POST(request) {
     return Response.json({ error: `Failed to generate content: ${error.message}` }, { status: 500 })
   }
 }
-
-
-
-
-
-
-
-
-
