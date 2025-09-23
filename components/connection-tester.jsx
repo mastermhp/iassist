@@ -251,5 +251,4 @@ export default function ConnectionTester() {
         </Alert>
       </CardContent>
     </Card>
-  )
-}
+  )}

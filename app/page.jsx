@@ -11,9 +11,6 @@ import { Switch } from "@/components/ui/switch"
 import { History } from "lucide-react" // Import History icon
 import { Bot, Zap, Play, Pause, Plus, Eye, Settings, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import ConnectionTester from "@/components/connection-tester"
-import AutoPostDashboard from "@/components/auto-post-dashboard"
-import ProcessMonitor from "@/components/process-monitor"
 
 export default function Dashboard() {
   const [isAutomationActive, setIsAutomationActive] = useState(false)
@@ -626,9 +623,159 @@ export default function Dashboard() {
             <ProcessMonitor />
           </div>
 
-          {/* Connection Tester */}
-          <div className="mt-8">
-            <ConnectionTester />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2">
+              <Card className="glass-effect neon-border animate-float">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-glow">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    <span>AI Content Generator</span>
+                  </CardTitle>
+                  <CardDescription>Generate engaging posts about your expertise automatically</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { name: "Facebook", icon: Facebook, color: "bg-blue-600" },
+                      { name: "Instagram", icon: Instagram, color: "bg-pink-600" },
+                      { name: "Twitter", icon: Twitter, color: "bg-sky-500" },
+                      { name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
+                    ].map((platform) => (
+                      <Button
+                        key={platform.name}
+                        variant="outline"
+                        className="h-20 flex-col space-y-2 neon-border hover:animate-glow bg-transparent"
+                        onClick={() => (window.location.href = "/generate")}
+                      >
+                        <platform.icon className="w-6 h-6 text-white" />
+                        <span className="text-xs platform-text">{platform.name}</span>
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        {isAutomationActive ? "Next automated post in:" : "Automation paused"}
+                      </span>
+                      <Badge variant="outline" className="animate-pulse-neon">
+                        <Clock className="w-3 h-3 mr-1" />
+                        <span className="text-white">
+                          {isAutomationActive && nextPostTime
+                            ? `${Math.ceil((nextPostTime - new Date()) / (1000 * 60))}m`
+                            : "Paused"}
+                        </span>
+                      </Badge>
+                    </div>
+                    <Progress
+                      value={
+                        isAutomationActive && nextPostTime
+                          ? Math.max(0, 100 - ((nextPostTime - new Date()) / (1000 * 60 * 60)) * 100)
+                          : 0
+                      }
+                      className="h-2"
+                    />
+
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50">
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className={`w-2 h-2 rounded-full ${isAutomationActive ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
+                          />
+                          <span className="text-sm text-white">
+                            Automation {isAutomationActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {isAutomationActive ? "AI is monitoring schedules" : "No automatic posting"}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50">
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className={`w-2 h-2 rounded-full ${automationConfig.schedules.filter((s) => s.enabled).length > 0 ? "bg-blue-400" : "bg-gray-400"}`}
+                          />
+                          <span className="text-sm text-white">
+                            {automationConfig.schedules.filter((s) => s.enabled).length} Active Schedules
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {automationConfig.schedules.filter((s) => s.enabled).length > 0
+                            ? "Ready to post"
+                            : "No schedules configured"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 animate-glow"
+                    onClick={() => (window.location.href = "/generate")}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    <span className="text-white">Generate New Post</span>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <Card className="glass-effect neon-border animate-float" style={{ animationDelay: "0.2s" }}>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-glow">
+                    <Calendar className="w-5 h-5 text-primary" />
+                    <span>Schedule</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 neon-border">
+                      <span className="text-sm text-white">Today</span>
+                      <Badge variant="secondary">
+                        <span className="text-white">3 posts</span>
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20">
+                      <span className="text-sm text-white">Tomorrow</span>
+                      <Badge variant="outline">
+                        <span className="text-white">2 posts</span>
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20">
+                      <span className="text-sm text-white">This Week</span>
+                      <Badge variant="outline">
+                        <span className="text-white">14 posts</span>
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="glass-effect neon-border animate-float" style={{ animationDelay: "0.4s" }}>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-glow">
+                    <BarChart3 className="w-5 h-5 text-primary" />
+                    <span>Performance</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-white">Engagement</span>
+                      <span className="text-sm font-medium text-green-400">+24%</span>
+                    </div>
+                    <Progress value={78} className="h-2" />
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-white">Reach</span>
+                      <span className="text-sm font-medium text-green-400">+18%</span>
+                    </div>
+                    <Progress value={65} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </main>
       </div>

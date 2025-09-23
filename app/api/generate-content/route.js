@@ -33,6 +33,7 @@ I'm a professional web developer and AI specialist with expertise in:
 - Interested in creating revolutionary solutions
 `;
 
+
 export async function POST(request) {
   try {
     const {

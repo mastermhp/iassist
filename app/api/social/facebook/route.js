@@ -43,7 +43,7 @@ export async function POST(request) {
     }
 
     const pageId = process.env.FB_PAGE_ID
-    const accessToken = process.env.FB_ACCESS_TOKEN
+    const accessToken = process.env.FB_ACCESS_TOKEN || process.env.MARKETING_API_TOKEN
 
     console.log("[v0] Facebook posting attempt:", {
       pageId: pageId ? `✓ (${pageId})` : "✗",
@@ -56,7 +56,7 @@ export async function POST(request) {
       return Response.json(
         {
           error:
-            "Facebook Page ID and Access Token are required. Please add FB_PAGE_ID and FB_ACCESS_TOKEN to your environment variables.",
+            "Facebook Page ID and Access Token are required. Please add FB_PAGE_ID and FB_ACCESS_TOKEN (or MARKETING_API_TOKEN) to your environment variables.",
         },
         { status: 400 },
       )
